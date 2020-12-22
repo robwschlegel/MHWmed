@@ -2,7 +2,6 @@
 .Rhistory
 .RData
 .Ruserdata
-data/*.nc
-data/*.zip
 data/**/*.nc
 data/**/*.zip
+data/**/*.Rds

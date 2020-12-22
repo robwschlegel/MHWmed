@@ -13,7 +13,7 @@ library(doParallel); registerDoParallel(cores = 7)
 # The data locations
 # NB: These files are not hosted on GitHub as they are too large
 # Contact Robert Schlegel to receive them: robert.schlegel@imev-mer.fr
-med_SST_files <- dir("data", pattern = ".nc", full.names = T, recursive = T)
+med_SST_files <- dir("data/SST", pattern = ".nc", full.names = T, recursive = T)
 
 # The lon/lat indexes
 med_lat <- tidync(med_SST_files[1]) %>% 
@@ -32,34 +32,32 @@ med_lon <- tidync(med_SST_files[1]) %>%
 # Function to load a latitude subset of a single NetCDF file
 # testers...
 # file_name <- med_SST_files[100]
-# lat_int <- 1
-load_nc_sub <- function(file_name, lat_int){
+# lat_row <- 1
+load_nc_sub <- function(file_name, lat_row){
   SST_sub <- tidync(file_name) %>% 
-    hyper_filter(lat = lat == med_lat$lat[lat_int],
-                 lon = lon == med_lon$lon[1]) %>%
+    hyper_filter(lat = lat == med_lat$lat[lat_row]) %>% #,
+                 # lon = lon == med_lon$lon[1]) %>%
     hyper_tibble() %>% 
     mutate(t = as.Date(as.POSIXct(time, origin = "1981-01-01")),
            temp = round(analysed_sst - 273.15, 2)) %>% 
     dplyr::select(lon, lat, t, temp)
 }
 
-# Convenience function for parallel processing
-detect_event_cat <- function(df){
-  df_event <- detect_event(ts2clm(df, climatologyPeriod = c("1982-01-01", "2011-12-31")))
-  df_cat <- category(df_event, climatology = T, season = "peak")
-  res <- list(event = df_event, cat = df_cat)
-  return(res)
-}
-
 # 378 latitude pixels, 1305 longitude
-MHW_pipeline <- function(lat_int){
+MHW_pipeline <- function(lat_row){
+  
+  # Begin
+  lat_row_pad <- str_pad(lat_row, width = 3, pad = "0", side = "left")
+  print(paste("Began run", lat_row_pad, "at", Sys.time()))
   
   # Load data
-  SST_prep <- plyr::ldply(med_SST_files, load_nc_sub, lat_int = lat_int, .parallel = T, .paropts = c(.inorder = FALSE))
+  # system.time(
+  SST_prep <- map_df(.x = med_SST_files, .f = load_nc_sub, lat_row = lat_row)
+  # ) # 60 seconds for 1 full lat slice
   
   # Calculate MHWs
-  # Make calculations
-  MCS_res <- SST_prep %>%
+  # system.time(
+  MHW_res <- SST_prep %>%
     # filter(lat == -63.375, lon == 0.125) %>% # tester...
     group_by(lon, lat) %>%
     nest() %>% 
@@ -67,5 +65,14 @@ MHW_pipeline <- function(lat_int){
            event = purrr::map(clim, detect_event), 
            cat = purrr::map(event, category, climatology = T, season = "peak")) %>%
     select(-data, -clim)
+  # ) # 55 seconds for one full lat slice
+  
+  # Finish
+  saveRDS(MHW_res, paste0("data/MHW/MHW_calc_", lat_row_pad,".Rds"))
+  rm(SST_prep, MCS_res); gc()
+  print(paste("Completed run",lon_row_pad,"at",Sys.time()))
 }
+
+# Run it
+plyr::l_ply(seq_len(nrow(med_lat)), MHW_pipeline, .parallel = T)
 
