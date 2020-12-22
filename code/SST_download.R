@@ -21,3 +21,4 @@ library(threadr) # For downloading from FTP sites that require user credentials
 
 # ftp://nrt.cmems-du.eu/Core/
 
+# As the file was not currently mounted Nathaniel sent it to me
