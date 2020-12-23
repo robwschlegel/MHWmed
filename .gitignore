@@ -5,3 +5,6 @@
 data/**/*.nc
 data/**/*.zip
 data/**/*.Rds
+data/MHW_cat_pixel_annual.RData
+data/MHW_cat_daily_annual.RData
+data/MHW_cat_summary_annual.RData
