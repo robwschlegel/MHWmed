@@ -23,8 +23,14 @@ med_lon <- tidync(med_SST_files[1]) %>%
   activate("D2") %>% 
   hyper_tibble()
 
-# The 2019 data
-# SST_2019 <- readMat("data/2019/L4_REP_SST_MED_2019.mat")
+# The coords with SST data
+med_sea_coords <- tidync(med_SST_files[1]) %>% 
+  hyper_filter(time = time == 31536000) %>% 
+  hyper_tibble() %>% 
+  na.omit() %>% 
+  dplyr::select(lon, lat) %>% 
+  distinct()
+save(med_sea_coords, file = "metadata/med_sea_coords.RData")
 
 
 # MHW pipeline ------------------------------------------------------------
@@ -70,9 +76,9 @@ MHW_pipeline <- function(lat_row){
   # Finish
   saveRDS(MHW_res, paste0("data/MHW/MHW_calc_", lat_row_pad,".Rds"))
   rm(SST_prep, MCS_res); gc()
-  print(paste("Completed run",lon_row_pad,"at",Sys.time()))
+  # print(paste("Completed run",lat_row_pad,"at",Sys.time()))
 }
 
 # Run it
-plyr::l_ply(seq_len(nrow(med_lat)), MHW_pipeline, .parallel = T)
+plyr::l_ply(seq_len(nrow(med_lat)), MHW_pipeline, .parallel = T) # ~8 hours on 7 cores
 
