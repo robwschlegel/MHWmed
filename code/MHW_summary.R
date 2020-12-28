@@ -311,6 +311,12 @@ total_summary_fig <- function(){
 
 # Summaries ---------------------------------------------------------------
 
+# Also need to create summaries by region and season
+# Only the warm months JJASON for 2015 - 2019: Spatial coverage, total duration, max/mean intensity
+# Show trends over time as well as spatial maps
+# Divide the Western Med into the Northwest Med, which is north of 39 N
+# Event analysis of specific years
+
 # The occurrences per pixel
 # system.time(
 # MHW_cat_pixel_annual <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
