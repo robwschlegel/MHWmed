@@ -6,6 +6,7 @@
 
 # The needed packages
 library(tidyverse)
+library(sf)
 library(doParallel); registerDoParallel(cores = 7)
 
 # The file location
@@ -15,13 +16,19 @@ res_files <- dir("data/MHW", full.names = T)
 load("metadata/med_sea_coords.RData")
 
 # Complete annual dates by categories
-full_annual_grid <- expand_grid(year = seq(1982:2019), 
+full_annual_grid <- expand_grid(year = seq(1982, 2019), 
                                 category = as.factor(c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
+
+# Full monthly grid
+full_monthly_grid <- expand_grid(year = seq(1982, 2019), 
+                                 month = lubridate::month(seq(1:12), label = T, abb = T), 
+                                 category = as.factor(c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
 
 # Complete daily dates by categories
 full_daily_grid <- expand_grid(t = seq(as.Date(paste0("1982-01-01")), as.Date("2019-12-31"), by = "day"), 
                                category = as.factor(c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
   mutate(year = lubridate::year(t))
+
 
 # The MHW category colour palette
 MHW_colours <- c(
@@ -37,11 +44,36 @@ map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE
   mutate(group = ifelse(lon > 180, group+9999, group),
          lon = ifelse(lon > 180, lon-360, lon))
 
+# MEOW
+MEOW <- read_sf("metadata/MEOW/meow_ecos.shp") %>% 
+  filter(PROVINCE == "Mediterranean Sea")
+# plot(MEOW)
+
+# Disable scientific notation
+options(scipen = 999)
+
 
 # Functions ---------------------------------------------------------------
 
+# Function for finding and cleaning up points within a given region polygon
+points_in_region <- function(region_in){
+  region_sub <- MEOW %>% 
+    filter(ECOREGION == region_in) %>% 
+    dplyr::select(geometry)
+  region_sub <- as.data.frame(region_sub$geometry[[1]][[1]]) %>%
+    `colnames<-`(c("lon", "lat"))
+    # unnest()
+  coords_in <- med_sea_coords %>% 
+    mutate(in_grid = sp::point.in.polygon(point.x = med_sea_coords[["lon"]], point.y = med_sea_coords[["lat"]], 
+                                          pol.x = region_sub[["lon"]], pol.y = region_sub[["lat"]])) %>% 
+    filter(in_grid >= 1) %>% 
+    mutate(region = region_in) %>% 
+    dplyr::select(lon, lat, region)
+  return(coords_in)
+}
+
 # Function for loading only the daily cat results
-load_cat_daily <- function(file_name){
+load_cat_daily <- function(file_name, lon_range = FALSE){
   
   # Load data
   res_full <- readRDS(file_name)
@@ -55,6 +87,12 @@ load_cat_daily <- function(file_name){
     ungroup() %>% 
     mutate(category = factor(category),
            year = lubridate::year(t))
+  
+  if(lon_range){
+    cat_clim <- cat_clim %>% 
+      filter(lon >= lon_range[1],
+             lon <= lon_range[2])
+  }
   
   # Clean up and exit
   rm(res_full); gc()
@@ -81,18 +119,10 @@ cat_pixel_calc <- function(file_name){
     dplyr::select(-event_no) %>%
     group_by(lon, lat, year, category) %>%
     summarise(count = n(), .groups = "drop") %>% 
+    group_by(lon, lat) %>% 
+    right_join(full_annual_grid, by = c("year", "category")) %>% # This used to be a left join...
     pivot_wider(values_from = count, names_from = category) %>% 
     replace(is.na(.), 0)
-  if(!"III Severe" %in% colnames(MHW_cat_count)){
-    MHW_cat_count <- MHW_cat_count %>% 
-      cbind(data.frame('III Severe' = 0))
-    colnames(MHW_cat_count)[colnames(MHW_cat_count) == 'III.Severe'] <- 'III Severe'
-  }
-  if(!"IV Extreme" %in% colnames(MHW_cat_count)){
-    MHW_cat_count <- MHW_cat_count %>% 
-      cbind(data.frame('IV Extreme' = 0))
-    colnames(MHW_cat_count)[colnames(MHW_cat_count) == 'IV.Extreme'] <- 'IV Extreme'
-  }
   
   # The earliest date of the highest category of event
   MHW_cat_pixel <- MHW_cat %>% 
@@ -126,6 +156,104 @@ cat_daily_calc <- function(file_name){
   # Clean up and exit
   rm(MHW_cat); gc()
   return(MHW_cat_daily)
+}
+
+# Regional/seasonal summary calculations
+region_calc <- function(region_name){
+  
+  print(paste0("Began run on ",region_name," at ",Sys.time()))
+  
+  # Find region coords
+  region_coords <- filter(med_regions, region == region_name) %>% 
+    distinct()
+  file_sub <- data.frame(lat_index = seq_len(length(unique(med_sea_coords$lat))),
+                         lat = unique(med_sea_coords$lat)) %>% 
+    filter(lat %in% region_coords$lat)
+  
+  # load necessary files
+  registerDoParallel(cores = 7)
+  cat_daily <- plyr::ldply(res_files[file_sub$lat_index], load_cat_daily, 
+                           .parallel = T, lon_range = range(region_coords$lon)) %>% 
+    mutate(month = lubridate::month(t, label = T, abb = T)) %>% 
+    right_join(region_coords, by = c("lon", "lat"))
+  gc() # Free up some RAM
+  
+  # Count of category days per year, month, region
+  cat_count <- cat_daily %>% 
+    group_by(year, month, category) %>% 
+    summarise(count = n()/nrow(region_coords), .groups = "drop") %>% 
+    right_join(full_monthly_grid, by = c("year", "month", "category")) %>% 
+    pivot_wider(values_from = count, names_from = category) %>% 
+    replace(is.na(.), 0)
+  
+  # Spatial coverage
+  cat_surface <- cat_daily %>% 
+    dplyr::select(lon, lat, year, month) %>% 
+    distinct() %>% 
+    group_by(year, month) %>% 
+    summarise(surface = n()/nrow(region_coords), .groups = "drop") %>% 
+    right_join(distinct(full_monthly_grid[,1:2]), by = c("year", "month")) %>% 
+    replace(is.na(.), 0)
+  
+  # Calculations for MHW metrics
+  cat_calc <- cat_daily %>% 
+    group_by(year, month) %>% 
+    summarise(duration = n()/nrow(region_coords),
+              max_int = max(intensity),
+              mean_int = mean(intensity),
+              mean_sum_int = sum(intensity)/nrow(region_coords), .groups = "drop") %>% 
+    pivot_longer(duration:mean_sum_int) %>% 
+    right_join(expand.grid(year = seq(1982, 2019), 
+                           month = lubridate::month(seq(1:12), label = T, abb = T),
+                           name = c("duration", "max_int", "mean_int", "mean_sum_int")), 
+               by = c("year", "month", "name")) %>% 
+    pivot_wider(values_from = value, names_from = name) %>% 
+    replace(is.na(.), 0) %>% 
+    arrange(year, month) %>% 
+    left_join(cat_count, by = c("year", "month")) %>% 
+    left_join(cat_surface, by = c("year", "month")) %>% 
+    mutate(region = region_name) %>% 
+    dplyr::select(region, year, month, surface, max_int:mean_sum_int, duration, everything())
+  
+  # Clean up and exit
+  rm(region_coords, file_sub, cat_daily, cat_count, cat_surface); gc()
+  return(cat_calc)
+}
+
+# Event analysis of specific years
+event_analysis <- function(){}
+
+# Function for creating multi-faceted line plots for region summaries
+region_summary_fig <- function(region_sub, 
+                               year_range = seq(1982, 2019), 
+                               month_range = lubridate::month(seq(1, 12), label = T, abb = T)){
+  
+  # File name
+  fig_name <- paste0("figures/",region_sub,"_",
+                     min(year_range),"-",max(year_range),"_",
+                     min(month_range),"-",max(month_range),".png")
+  if(region_sub == "Tunisian Plateau/Gulf of Sidra"){
+    fig_name <- str_remove(fig_name, "/Gulf of Sidra")
+  }
+  
+  # Plot
+  region_plot <- MHW_cat_region %>% 
+    filter(region == region_sub,
+           year %in% year_range,
+           month %in% month_range) %>% 
+    pivot_longer(cols = surface:`IV Extreme`) %>% 
+    mutate(name = factor(name,
+                         levels = c("surface", "max_int", "mean_int", "mean_sum_int", "duration",
+                                    "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
+    ggplot(aes(x = year, y = value, colour = month)) +
+    geom_point() +
+    geom_line(alpha = 0.5) +
+    geom_smooth(method = "lm", se = F, linetype = "dashed") +
+    facet_wrap(~name, scales = "free_y") +
+    labs(y = NULL, title = region_sub)
+  
+  # Save
+  ggsave(fig_name, region_plot, height = 10, width = 10)
 }
 
 # Annual summary figure
@@ -309,13 +437,18 @@ total_summary_fig <- function(){
 }
 
 
-# Summaries ---------------------------------------------------------------
+# Pixels in regions -------------------------------------------------------
 
-# Also need to create summaries by region and season
-# Only the warm months JJASON for 2015 - 2019: Spatial coverage, total duration, max/mean intensity
-# Show trends over time as well as spatial maps
+# Find SST pixels within Med MEOW
 # Divide the Western Med into the Northwest Med, which is north of 39 N
-# Event analysis of specific years
+registerDoParallel(cores = 7)
+med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel = T) %>% 
+  mutate(region = case_when(region == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
+                            region == "Western Mediterranean" & lat < 39 ~ "Southwestern Mediterranean",
+                            TRUE ~ region))
+
+
+# Annual summaries --------------------------------------------------------
 
 # The occurrences per pixel
 # system.time(
@@ -331,33 +464,63 @@ load("data/MHW_cat_pixel_annual.RData")
 # save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
 load("data/MHW_cat_daily_annual.RData")
 
-### Summaries of total data
+
+# Regional summaries ------------------------------------------------------
+
+# NB: Do not run in parallel
+# system.time(
+# MHW_cat_region <- plyr::ldply(unique(med_regions$region), region_calc, .parallel = F)
+# ) # 90 seconds for 1 on 7 cores, ~14 minutes total
+# save(MHW_cat_region, file = "data/MHW_cat_region.RData")
+# readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
+load("data/MHW_cat_region.RData")
+
+# Total reional summaries
+plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T)
+
+# Only the warm months JJASON
+plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
+            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+
+# Only the warm months JJASON for 2015 - 2019
+plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
+            year_range = seq(2015, 2019),
+            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+
+
+# Trend summaries ---------------------------------------------------------
+
+# Nothing here yet...
+
+
+# Total summaries ---------------------------------------------------------
 
 # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
-MHW_cat_first_annual <- MHW_cat_pixel_annual %>%
-  group_by(t, year, category) %>%
-  summarise(first_n = n(), .groups = "drop") %>% 
-  right_join(full_daily_grid, by = c("t", "year", "category")) %>%
-  arrange(year, t, category) %>% 
-  mutate(first_n = ifelse(is.na(first_n), 0, first_n),
-         first_n_prop = round(first_n/nrow(med_sea_coords), 4)) %>% 
-  # arrange(t, category) %>% 
-  group_by(year, category) %>%
-  mutate(first_n_cum = cumsum(first_n),
-         first_n_cum_prop = round(first_n_cum/nrow(med_sea_coords), 4)) %>% 
-  ungroup()
+# MHW_cat_first_annual <- MHW_cat_pixel_annual %>%
+#   group_by(t, year, category) %>%
+#   summarise(first_n = n(), .groups = "drop") %>% 
+#   right_join(full_daily_grid, by = c("t", "year", "category")) %>%
+#   arrange(year, t, category) %>% 
+#   mutate(first_n = ifelse(is.na(first_n), 0, first_n),
+#          first_n_prop = round(first_n/nrow(med_sea_coords), 4)) %>% 
+#   # arrange(t, category) %>% 
+#   group_by(year, category) %>%
+#   mutate(first_n_cum = cumsum(first_n),
+#          first_n_cum_prop = round(first_n_cum/nrow(med_sea_coords), 4)) %>% 
+#   ungroup()
 
 # The count of categories of MHWs happening on a given day, and cumulatively throughout the year
-MHW_cat_summary_annual <- MHW_cat_daily_annual %>% 
-  arrange(year, t, category) %>% 
-  group_by(t, year, category) %>% 
-  summarise(cat_n = sum(cat_n), .groups = "keep") %>% 
-  mutate(cat_n_prop = round(cat_n/nrow(med_sea_coords), 4)) %>% 
-  group_by(year, category) %>%
-  mutate(cat_n_cum = cumsum(cat_n),
-         cat_n_cum_prop = round(cat_n_cum/nrow(med_sea_coords), 4)) %>% 
-  right_join(MHW_cat_first_annual, by = c("t", "year", "category"))
-save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
+# MHW_cat_summary_annual <- MHW_cat_daily_annual %>% 
+#   arrange(year, t, category) %>% 
+#   group_by(t, year, category) %>% 
+#   summarise(cat_n = sum(cat_n), .groups = "keep") %>% 
+#   mutate(cat_n_prop = round(cat_n/nrow(med_sea_coords), 4)) %>% 
+#   group_by(year, category) %>%
+#   mutate(cat_n_cum = cumsum(cat_n),
+#          cat_n_cum_prop = round(cat_n_cum/nrow(med_sea_coords), 4)) %>% 
+#   right_join(MHW_cat_first_annual, by = c("t", "year", "category"))
+# save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
+load("data/MHW_cat_summary_annual.RData")
 
 
 # Figures -----------------------------------------------------------------
@@ -365,8 +528,8 @@ save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
 # They are not standalone functions...
 
 # Create annual summary figures
-plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
+# plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
-total_summary_fig()
+# total_summary_fig()
 
