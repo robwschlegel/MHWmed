@@ -202,6 +202,11 @@ region_calc <- function(region_name){
               max_int = max(intensity),
               mean_int = mean(intensity),
               mean_sum_int = sum(intensity)/nrow(region_coords), .groups = "drop") %>% 
+    
+    # Need to add cumulative intensity to the output
+    # Don't calculate values that account for pixels with NO MHW
+    # We only want to know about temperature anomalies from MHWs
+    
     pivot_longer(duration:mean_sum_int) %>% 
     right_join(expand.grid(year = seq(1982, 2019), 
                            month = lubridate::month(seq(1:12), label = T, abb = T),
@@ -434,6 +439,23 @@ total_summary_fig <- function(){
                                         ncol = 3, align = "hv", labels = c("(A)", "(B)", "(C)"), hjust = -0.1,
                                         font.label = list(size = 14), common.legend = T, legend = "bottom")
   ggsave(fig_ALL_historic, filename = "figures/MHW_cat_historic.png", height = 4.25, width = 12)
+}
+
+# Warm season figure
+# Include a range of metrics for each ecoregion
+# Surface area, duration, max, mean, cumulative intensity
+# Stacked bar charts can show the different categories experienced
+ecoregions_summary_fig <- function(){
+  
+}
+
+# Function to create monthly maps of warm season 2015-2019
+# Histograms (stacked barplots) of MHW summaries for each ecoregion
+# Show maps for the different statistics as different panels
+# Surface area, duration, max, mean, cumulative intensity
+# Six panel can be for the legend
+monthly_map_fig <- function(){
+  
 }
 
 

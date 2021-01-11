@@ -2,12 +2,17 @@
 # This script contains the code used to convert MHW results to NetCDF files
 
 
+# TODO: One should actually be able to combine the event and cat tables together
+# that are already the same shape
+
+
 # Setup -------------------------------------------------------------------
 
 # Needed packages
 library(tidyverse)
 library(tidync)
 library(ncdf4)
+library(abind)
 
 # Original SST files for reference
 med_SST_files <- dir("data/SST", pattern = ".nc", full.names = T, recursive = T)
@@ -68,13 +73,13 @@ df_proc <- function(df){
     mutate(t2 = t) %>% 
     group_by(t2) %>%
     nest() %>%
-    mutate(data2 = purrr::map(data, OISST_acast)) %>%
+    mutate(data2 = purrr::map(data, df_acast)) %>%
     select(-data)
   
   # Final form
-  dfa_temp <- abind(dfa$data2, along = 3, hier.names = T)
-  # dimnames(dfa_temp)
-  return(dfa_temp)
+  dfa_res <- abind(dfa$data2, along = 3, hier.names = T)
+  # dimnames(dfa_res)
+  return(dfa_res)
 }
 
 # Load a Rds file and save it as NetCDF
