@@ -33,7 +33,6 @@ full_daily_grid <- expand_grid(t = seq(as.Date(paste0("1982-01-01")), as.Date("2
                                category = as.factor(c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
   mutate(year = lubridate::year(t))
 
-
 # The MHW category colour palette
 MHW_colours <- c(
   "I Moderate" = "#ffc866",
@@ -80,7 +79,7 @@ points_in_region <- function(region_in){
 }
 
 # Function for loading only the daily cat results
-load_cat_daily <- function(file_name, lon_range = FALSE){
+load_cat_daily <- function(file_name, lon_range = NA){
   
   # Load data
   res_full <- readRDS(file_name)
@@ -92,11 +91,13 @@ load_cat_daily <- function(file_name, lon_range = FALSE){
     filter(row_number() %% 2 == 1) %>% 
     unnest(cat) %>% 
     ungroup() %>% 
+    filter(!is.na(t)) %>%
     mutate(category = factor(category),
            year = lubridate::year(t),
            month = lubridate::month(t, label = T, abb = T))
   
-  if(lon_range){
+  # Trim lon if desired
+  if(length(lon_range) > 1){
     cat_clim <- cat_clim %>% 
       filter(lon >= lon_range[1],
              lon <= lon_range[2])
@@ -181,10 +182,11 @@ region_calc <- function(region_name){
     filter(lat %in% region_coords$lat)
   
   # load necessary files
-  registerDoParallel(cores = 7)
+  registerDoParallel(cores = 5)
   cat_daily <- plyr::ldply(res_files[file_sub$lat_index], load_cat_daily, 
-                           .parallel = T, lon_range = range(region_coords$lon)) %>% 
-    mutate(month = lubridate::month(t, label = T, abb = T)) %>% 
+                           .parallel = T, #.paropts = c(inorder = F),
+                           lon_range = range(region_coords$lon)) %>% 
+    # mutate(month = lubridate::month(t, label = T, abb = T)) %>% 
     right_join(region_coords, by = c("lon", "lat"))
   gc() # Free up some RAM
   
@@ -243,13 +245,13 @@ region_calc <- function(region_name){
 # Event analysis of specific years
 event_analysis <- function(){}
 
-# Function for creating multi-faceted line plots for region summaries
-region_summary_fig <- function(region_sub, 
-                               year_range = seq(1982, 2019), 
-                               month_range = lubridate::month(seq(1, 12), label = T, abb = T)){
+# Function for creating multi-faceted stacked barplots for ecoregion summaries
+ecoregion_trend_fig <- function(region_sub, 
+                                year_range = seq(1982, 2019), 
+                                month_range = lubridate::month(seq(6, 11), label = T, abb = T)){
   
   # File name
-  fig_name <- paste0("figures/",region_sub,"_",
+  fig_name <- paste0("figures/MHW_trend_",region_sub,"_",
                      min(year_range),"-",max(year_range),"_",
                      min(month_range),"-",max(month_range),".png")
   if(region_sub == "Tunisian Plateau/Gulf of Sidra"){
@@ -273,6 +275,45 @@ region_summary_fig <- function(region_sub,
     geom_smooth(method = "lm", se = F, linetype = "dashed") +
     facet_wrap(~name, scales = "free_y") +
     labs(y = NULL, title = region_sub)
+  
+  # Save
+  ggsave(fig_name, region_plot, height = 10, width = 10)
+}
+
+# Warm season figure per ecoregion
+ecoregion_summary_fig <- function(region_sub, 
+                                  year_range = seq(2015, 2019), 
+                                  month_range = lubridate::month(seq(6, 11), label = T, abb = T)){
+  
+  # File name
+  fig_name <- paste0("figures/MHW_summary_",region_sub,"_",
+                     min(year_range),"-",max(year_range),"_",
+                     min(month_range),"-",max(month_range),".png")
+  if(region_sub == "Tunisian Plateau/Gulf of Sidra"){
+    fig_name <- str_remove(fig_name, "/Gulf of Sidra")
+  }
+  
+  # Plot
+  region_plot <- MHW_cat_region %>% 
+    filter(region == region_sub,
+           year %in% year_range,
+           month %in% month_range) %>% 
+    pivot_longer(cols = surface:`IV Extreme`) %>% 
+    mutate(value = case_when(name != c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
+                             TRUE ~ value),
+           name = factor(name,
+                         levels = c("surface", "duration", "max_int", "mean_int", "cum_int",
+                                    "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
+    ggplot(aes(x = year, y = value)) +
+    geom_bar(aes(fill = month), 
+             stat = "identity", 
+             show.legend = F,
+             position = "dodge",
+             # position = position_stack(reverse = TRUE), 
+             width = 1) +
+    facet_wrap(~name, scales = "free_y") +
+    labs(y = NULL, title = region_sub)
+  # region_plot
   
   # Save
   ggsave(fig_name, region_plot, height = 10, width = 10)
@@ -458,15 +499,6 @@ total_summary_fig <- function(){
   ggsave(fig_ALL_historic, filename = "figures/MHW_cat_historic.png", height = 4.25, width = 12)
 }
 
-# Warm season figure
-# Include a range of metrics for each ecoregion
-# Surface area, duration, max, mean, cumulative intensity
-# Histograms (stacked barplots) of MHW summaries for each ecoregion
-# Stacked bar charts can show the different categories experienced
-ecoregions_summary_fig <- function(){
-  
-}
-
 # Function to create monthly maps of warm season 2015-2019
 monthly_map_fig_one <- function(month_choice, year_choice, common_scales){
   
@@ -522,6 +554,7 @@ monthly_map_fig_full <- function(year_choice){
   
   # Create common scales
   common_scales <- MHW_cat_region %>% 
+    filter(year >= 2015) %>% 
     mutate(cum_int = cum_int/pixels, 
            duration = duration/pixels) %>% 
     dplyr::select(surface, max_int, mean_int, cum_int, duration) %>% 
@@ -584,7 +617,7 @@ med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel =
 # MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
 # ) # ~15 minutes on 7 cores
 # save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
-load("data/MHW_cat_pixel_monthly.RData")
+# load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
 
 # The occurrences per year per pixel
 # MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>% 
@@ -609,7 +642,8 @@ load("data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_daily_annual.RData")
 
 
-# Regional summaries ------------------------------------------------------
+
+# Ecoregion summaries -----------------------------------------------------
 
 # NB: Do not run in parallel
 system.time(
@@ -619,34 +653,20 @@ save(MHW_cat_region, file = "data/MHW_cat_region.RData")
 readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
 load("data/MHW_cat_region.RData")
 
-# Total regional summaries
-plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T)
 
-# Only the warm months JJASON
-plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
-            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+# Ecoregion summary figures -----------------------------------------------
 
-# Only the warm months JJASON for 2015 - 2019
-plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
-            year_range = seq(2015, 2019),
-            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+plyr::l_ply(unique(med_regions$region), ecoregion_summary_fig, .parallel = T)
 
 
-# Ecoregion summaries -----------------------------------------------------
+# Map summary figures -----------------------------------------------------
+
+plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
 
 
+# Ecoregion trend figures -------------------------------------------------
 
-
-# Map summaries -----------------------------------------------------------
-
-# Create plots
-# NB: Do not run in parallel
-plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = F)
-
-
-# Trend summaries ---------------------------------------------------------
-
-# Nothing here yet...
+plyr::l_ply(unique(med_regions$region), ecoregion_trend_fig, .parallel = T)
 
 
 # Total summaries ---------------------------------------------------------
