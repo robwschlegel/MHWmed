@@ -169,26 +169,13 @@ cat_daily_calc <- function(file_name){
   return(MHW_cat_daily)
 }
 
-# Regional/seasonal summary calculations
-region_calc <- function(region_name){
+# An in between function to help with RAM use
+region_proc <- function(file_name, region_coords){
   
-  print(paste0("Began run on ",region_name," at ",Sys.time()))
-  
-  # Find region coords
-  region_coords <- filter(med_regions, region == region_name) %>% 
-    distinct()
-  file_sub <- data.frame(lat_index = seq_len(length(unique(med_sea_coords$lat))),
-                         lat = unique(med_sea_coords$lat)) %>% 
-    filter(lat %in% region_coords$lat)
-  
-  # load necessary files
-  registerDoParallel(cores = 5)
-  cat_daily <- plyr::ldply(res_files[file_sub$lat_index], load_cat_daily, 
-                           .parallel = T, #.paropts = c(inorder = F),
-                           lon_range = range(region_coords$lon)) %>% 
-    # mutate(month = lubridate::month(t, label = T, abb = T)) %>% 
-    right_join(region_coords, by = c("lon", "lat"))
-  gc() # Free up some RAM
+  # Load data
+  cat_daily <- load_cat_daily(file_name) %>% 
+    right_join(region_coords, by = c("lon", "lat")) %>% 
+    filter(!is.na(t))
   
   # Number of pixels each month that experience a MHW
   cat_pixels <- cat_daily %>% 
@@ -234,12 +221,45 @@ region_calc <- function(region_name){
     left_join(cat_count, by = c("year", "month")) %>% 
     left_join(cat_surface, by = c("year", "month")) %>% 
     replace(is.na(.), 0) %>% 
-    mutate(region = region_name) %>% 
+    mutate(region = region_coords$region[1]) %>% 
     dplyr::select(region, year, month, pixels, surface, max_int:cum_int, duration, everything())
   
   # Clean up and exit
-  rm(region_coords, file_sub, cat_daily, cat_count, cat_surface); gc()
+  rm(cat_daily, cat_count, cat_surface); gc()
   return(cat_calc)
+}
+
+# Regional/seasonal summary calculations
+region_calc <- function(region_name){
+  
+  print(paste0("Began run on ",region_name," at ",Sys.time()))
+  
+  # Find region coords
+  region_coords <- filter(med_regions, region == region_name) %>% 
+    distinct()
+  file_sub <- data.frame(lat_index = seq_len(length(unique(med_sea_coords$lat))),
+                         lat = unique(med_sea_coords$lat)) %>% 
+    filter(lat %in% region_coords$lat)
+  
+  # load necessary files
+  registerDoParallel(cores = 7)
+  cat_res <- plyr::ldply(res_files[file_sub$lat_index], region_proc,
+                         .parallel = T,
+                         region_coords = region_coords) %>% 
+    group_by(region, year, month) %>%
+    summarise(pixels = sum(pixels),
+              surface = sum(surface),
+              duration = sum(duration),
+              max_int = max(max_int),
+              mean_int = mean(mean_int),
+              cum_int = sum(cum_int),
+              `I Moderate` = sum(`I Moderate`),
+              `II Strong` = sum(`II Strong`),
+              `III Severe` = sum(`III Severe`),
+              `IV Extreme` = sum(`IV Extreme`), .groups = "drop")
+  # Clean and exit
+  rm(region_coords, file_sub); gc() # Free up some RAM
+  return(cat_res)
 }
 
 # Event analysis of specific years
@@ -263,12 +283,12 @@ ecoregion_trend_fig <- function(region_sub,
     filter(region == region_sub,
            year %in% year_range,
            month %in% month_range) %>% 
-    pivot_longer(cols = surface:`IV Extreme`) %>% 
-    mutate(value = case_when(name != c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
+    pivot_longer(cols = surface:`IV Extreme`) %>%
+    mutate(value = case_when(!name %in%  c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
                              TRUE ~ value),
            name = factor(name,
-                         levels = c("surface", "duration", "max_int", "mean_int", "cum_int",
-                                    "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
+                         levels = c("surface", "mean_int", "max_int", "cum_int", "duration", 
+                                    "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
     ggplot(aes(x = year, y = value, colour = month)) +
     geom_point() +
     # geom_line(alpha = 0.5) +
@@ -299,15 +319,15 @@ ecoregion_summary_fig <- function(region_sub,
            year %in% year_range,
            month %in% month_range) %>% 
     pivot_longer(cols = surface:`IV Extreme`) %>% 
-    mutate(value = case_when(name != c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
+    mutate(value = case_when(!name %in%  c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
                              TRUE ~ value),
            name = factor(name,
-                         levels = c("surface", "duration", "max_int", "mean_int", "cum_int",
-                                    "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
+                         levels = c("surface", "mean_int", "max_int", "cum_int", "duration", 
+                                    "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
     ggplot(aes(x = year, y = value)) +
     geom_bar(aes(fill = month), 
              stat = "identity", 
-             show.legend = F,
+             show.legend = T,
              position = "dodge",
              # position = position_stack(reverse = TRUE), 
              width = 1) +
@@ -512,32 +532,32 @@ monthly_map_fig_one <- function(month_choice, year_choice, common_scales){
   plot_surface <- med_base + 
     geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = surface)) +
     coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
-    scale_fill_viridis_c("Proportion of surface", option = "E", 
-                         limits = range(common_scales$surface))
+    scale_fill_viridis_c("Prop. of surface", option = "E", 
+                         limits = c(0, max(common_scales$surface)))
   # Duration
   plot_duration <- med_base + 
     geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = duration/pixels)) +
     coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
     scale_fill_viridis_c("Duration of MHWs (days)", option = "D", 
-                         limits = range(common_scales$duration))
+                         limits = c(0, max(common_scales$duration)))
   # Mean intensity
   plot_mean_int <- med_base + 
     geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = mean_int)) +
     coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
     scale_fill_viridis_c("Mean intensity (°C)", option = "A", 
-                         limits = range(common_scales$mean_int))
+                         limits = c(0, max(common_scales$mean_int)))
   # Max intensity
   plot_max_int <- med_base + 
     geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = max_int)) +
     coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
     scale_fill_viridis_c("Max intensity (°C)", option = "B", 
-                         limits = range(common_scales$max_int))
+                         limits = c(0, max(common_scales$max_int)))
   # Cumulative intensity
   plot_cum_int <- med_base + 
     geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = cum_int/pixels)) +
     coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
-    scale_fill_viridis_c("Cumulative intensity (°C days)", option = "C", 
-                         limits = range(common_scales$cum_int))
+    scale_fill_viridis_c("Cum. intensity (°C days)", option = "C", 
+                         limits = c(0, max(common_scales$cum_int)))
   
   # Title
   fig_title <- paste0(year_choice,": ",month_choice)
@@ -646,11 +666,11 @@ load("data/MHW_cat_daily_annual.RData")
 # Ecoregion summaries -----------------------------------------------------
 
 # NB: Do not run in parallel
-system.time(
-MHW_cat_region <- plyr::ldply(unique(med_regions$region), region_calc, .parallel = F)
-) # 90 seconds for 1 on 7 cores, ~14 minutes total
-save(MHW_cat_region, file = "data/MHW_cat_region.RData")
-readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
+# system.time(
+# MHW_cat_region <- plyr::ldply(unique(med_regions$region), region_calc, .parallel = F)
+# ) # ~150 seconds for 1 on 7 cores, ~18 minutes total
+# save(MHW_cat_region, file = "data/MHW_cat_region.RData")
+# readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
 load("data/MHW_cat_region.RData")
 
 
@@ -659,14 +679,14 @@ load("data/MHW_cat_region.RData")
 plyr::l_ply(unique(med_regions$region), ecoregion_summary_fig, .parallel = T)
 
 
-# Map summary figures -----------------------------------------------------
-
-plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
-
-
 # Ecoregion trend figures -------------------------------------------------
 
 plyr::l_ply(unique(med_regions$region), ecoregion_trend_fig, .parallel = T)
+
+
+# Map summary figures -----------------------------------------------------
+
+plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
 
 
 # Total summaries ---------------------------------------------------------
