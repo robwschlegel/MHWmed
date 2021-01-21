@@ -7,6 +7,7 @@
 # The needed packages
 library(tidyverse)
 library(sf)
+library(sfheaders)
 library(doParallel); registerDoParallel(cores = 7)
 
 # The file location
@@ -44,13 +45,50 @@ map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE
   mutate(group = ifelse(lon > 180, group+9999, group),
          lon = ifelse(lon > 180, lon-360, lon))
 
-# MEOW
-MEOW <- read_sf("metadata/MEOW/meow_ecos.shp") %>% 
-  filter(PROVINCE == "Mediterranean Sea")
-# plot(MEOW)
-
 # Disable scientific notation
 options(scipen = 999)
+
+
+# Ecoregions --------------------------------------------------------------
+
+# Load MEOW
+MEOW <- read_sf("metadata/MEOW/meow_ecos.shp") %>% 
+  filter(PROVINCE == "Mediterranean Sea")
+
+## Create Northwestern + Southwestern Mediterranean regions
+# Extract lon/lat values
+MEOW_sub <- MEOW %>% 
+  filter(ECOREGION == "Western Mediterranean") %>% 
+  dplyr::select(geometry)
+MEOW_sub <- as.data.frame(MEOW_sub$geometry[[1]][[1]]) %>%
+  `colnames<-`(c("lon", "lat"))
+# Create polygons for each new region
+NW_polygon <- MEOW_sub %>%
+  filter(lat >= 39.1) %>% 
+  sf_multipolygon()
+st_crs(NW_polygon) <- 4326
+  # st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  # summarise(geometry = st_combine(geometry)) %>%
+  # st_cast("POLYGON")
+SW_polygon <- MEOW_sub %>%
+  filter(lat <= 39.3) %>% 
+  sf_multipolygon()
+st_crs(SW_polygon) <- 4326
+  # st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
+  # summarise(geometry = st_combine(geometry)) %>%
+  # st_cast("POLYGON")
+# Create new data.frame
+MEOW_new <- MEOW[c(7,7),] %>% 
+  mutate(ECOREGION = c("Northwestern Mediterranean", 
+                       "Southwestern Mediterranean"),
+         geometry = c(NW_polygon$geometry, SW_polygon$geometry))
+# Reintroduce to MEOW
+MEOW <- rbind(MEOW[-7,], MEOW_new)
+plot(MEOW$geometry)
+
+# Find SST pixels within Med MEOW
+registerDoParallel(cores = 7)
+med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel = T)
 
 
 # Functions ---------------------------------------------------------------
@@ -255,7 +293,9 @@ region_summary_fig <- function(region_sub,
            year %in% year_range,
            month %in% month_range) %>% 
     pivot_longer(cols = surface:`IV Extreme`) %>% 
-    mutate(name = factor(name,
+    mutate(value = case_when(name != c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
+                             TRUE ~ value),
+           name = factor(name,
                          levels = c("surface", "max_int", "mean_int", "cum_int", "duration",
                                     "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
     ggplot(aes(x = year, y = value, colour = month)) +
@@ -452,30 +492,50 @@ total_summary_fig <- function(){
 # Warm season figure
 # Include a range of metrics for each ecoregion
 # Surface area, duration, max, mean, cumulative intensity
+# Histograms (stacked barplots) of MHW summaries for each ecoregion
 # Stacked bar charts can show the different categories experienced
 ecoregions_summary_fig <- function(){
   
 }
 
 # Function to create monthly maps of warm season 2015-2019
-# Histograms (stacked barplots) of MHW summaries for each ecoregion
 # Show maps for the different statistics as different panels
 # Surface area, duration, max, mean, cumulative intensity
 # Six panel can be for the legend
-monthly_map_fig <- function(){
+# year_mon <- "2015 Jun"
+monthly_map_fig <- function(year_mon){
   
+  # Set year and month for plotting
+  year_choice <- sapply(str_split(year_mon, " "), "[[", 1)
+  month_choice <- sapply(str_split(year_mon, " "), "[[", 2)
+  
+  # Filter data
+  monthly_data <- MHW_cat_region %>% 
+    filter(year == year_choice, month == month_choice) %>% 
+    # pivot_longer(cols = surface:`IV Extreme`) %>% 
+    # mutate(value = case_when(name != c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
+    #                          TRUE ~ value),
+    #        name = factor(name,
+    #                      levels = c("surface", "max_int", "mean_int", "cum_int", "duration",
+    #                                 "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
+    left_join(MEOW, by = c("region" = "ECOREGION"))
+  
+  # Plot summaries faceted by variable
+  med_base <- ggplot() +
+    geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+    # geom_sf(data = monthly_data, aes(geometry = geometry, fill = surface)) +
+    # coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+    theme_void() +
+    guides(fill = guide_legend(override.aes = list(size = 10))) +
+    theme(panel.border = element_rect(colour = "black", fill = NA),
+          legend.position = "bottom",
+          legend.text = element_text(size = 14),
+          legend.title = element_text(size = 16),
+          panel.background = element_rect(fill = "grey90"))
+  med_base + geom_sf(data = monthly_data, alpha = 0.9, 
+                     aes(geometry = geometry, fill = surface)) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50))
 }
-
-
-# Pixels in regions -------------------------------------------------------
-
-# Find SST pixels within Med MEOW
-# Divide the Western Med into the Northwest Med, which is north of 39 N
-registerDoParallel(cores = 7)
-med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel = T) %>% 
-  mutate(region = case_when(region == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
-                            region == "Western Mediterranean" & lat < 39 ~ "Southwestern Mediterranean",
-                            TRUE ~ region))
 
 
 # Annual summaries --------------------------------------------------------
@@ -513,24 +573,34 @@ load("data/MHW_cat_daily_annual.RData")
 # Regional summaries ------------------------------------------------------
 
 # NB: Do not run in parallel
-# system.time(
-# MHW_cat_region <- plyr::ldply(unique(med_regions$region), region_calc, .parallel = F)
-# ) # 90 seconds for 1 on 7 cores, ~14 minutes total
-# save(MHW_cat_region, file = "data/MHW_cat_region.RData")
-# readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
+system.time(
+MHW_cat_region <- plyr::ldply(unique(med_regions$region), region_calc, .parallel = F)
+) # 90 seconds for 1 on 7 cores, ~14 minutes total
+save(MHW_cat_region, file = "data/MHW_cat_region.RData")
+readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
 load("data/MHW_cat_region.RData")
 
 # Total regional summaries
-# plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T)
+plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T)
 
 # Only the warm months JJASON
-# plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
-#             month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
+            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
 
 # Only the warm months JJASON for 2015 - 2019
-# plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
-#             year_range = seq(2015, 2019),
-#             month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
+            year_range = seq(2015, 2019),
+            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+
+
+# Ecoregion summaries -----------------------------------------------------
+
+
+
+
+# Map summaries -----------------------------------------------------------
+
+
 
 
 # Trend summaries ---------------------------------------------------------
