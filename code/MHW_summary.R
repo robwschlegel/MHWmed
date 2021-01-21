@@ -39,11 +39,22 @@ MHW_colours <- c(
   "IV Extreme" = "#2d0000"
 )
 
-# The base map
+# The base global map
 map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE)) %>%
   dplyr::rename(lon = long) %>%
   mutate(group = ifelse(lon > 180, group+9999, group),
          lon = ifelse(lon > 180, lon-360, lon))
+
+# The base Med map
+med_base <- ggplot() +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+  theme_void() +
+  guides(fill = guide_legend(override.aes = list(size = 10))) +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = "bottom",
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        panel.background = element_rect(fill = "grey90"))
 
 # Disable scientific notation
 options(scipen = 999)
@@ -503,11 +514,19 @@ ecoregions_summary_fig <- function(){
 # Surface area, duration, max, mean, cumulative intensity
 # Six panel can be for the legend
 # year_mon <- "2015 Jun"
-monthly_map_fig <- function(year_mon){
+monthly_map_fig <- function(df){
   
   # Set year and month for plotting
-  year_choice <- sapply(str_split(year_mon, " "), "[[", 1)
-  month_choice <- sapply(str_split(year_mon, " "), "[[", 2)
+  year_choice <- df$year
+  month_choice <- df$month
+  
+  # Create common scales
+  common_scales <- MHW_cat_region %>% 
+    mutate(cum_int = cum_int/pixels, 
+           duration = duration/pixels) %>% 
+    dplyr::select(surface, max_int, mean_int, cum_int, duration) %>% 
+    na.omit() %>% 
+    distinct()
   
   # Filter data
   monthly_data <- MHW_cat_region %>% 
@@ -520,21 +539,49 @@ monthly_map_fig <- function(year_mon){
     #                                 "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
-  # Plot summaries faceted by variable
-  med_base <- ggplot() +
-    geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
-    # geom_sf(data = monthly_data, aes(geometry = geometry, fill = surface)) +
-    # coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
-    theme_void() +
-    guides(fill = guide_legend(override.aes = list(size = 10))) +
-    theme(panel.border = element_rect(colour = "black", fill = NA),
-          legend.position = "bottom",
-          legend.text = element_text(size = 14),
-          legend.title = element_text(size = 16),
-          panel.background = element_rect(fill = "grey90"))
-  med_base + geom_sf(data = monthly_data, alpha = 0.9, 
-                     aes(geometry = geometry, fill = surface)) +
-    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50))
+  ## Plot summaries per variable
+  # Surface
+  plot_surface <- med_base + 
+    geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = surface)) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+    scale_fill_viridis_c("Proportion of surface", option = "E", 
+                         limits = range(common_scales$surface))
+  # Duration
+  plot_duration <- med_base + 
+    geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = duration/pixels)) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+    scale_fill_viridis_c("Duration of MHWs (days)", option = "D", 
+                         limits = range(common_scales$duration))
+  # Mean intensity
+  plot_mean_int <- med_base + 
+    geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = mean_int)) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+    scale_fill_viridis_c("Mean intensity (°C)", option = "A", 
+                         limits = range(common_scales$mean_int))
+  # Max intensity
+  plot_max_int <- med_base + 
+    geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = max_int)) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+    scale_fill_viridis_c("Max intensity (°C)", option = "B", 
+                         limits = range(common_scales$max_int))
+  # Cumulative intensity
+  plot_cum_int <- med_base + 
+    geom_sf(data = monthly_data, alpha = 0.9, aes(geometry = geometry, fill = cum_int/pixels)) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+    scale_fill_viridis_c("Cumulative intensity (°C days)", option = "C", 
+                         limits = range(common_scales$cum_int))
+  
+  # Title
+  fig_title <- paste0(year_choice,": ",month_choice)
+  # Combine into one tall figure
+  fig_ALL <- ggpubr::ggarrange(plot_surface, plot_duration, plot_mean_int, 
+                               plot_max_int, plot_cum_int, ncol = 1)
+  fig_ALL_cap <- grid::textGrob(fig_title, x = 0.01, just = "left", gp = grid::gpar(fontsize = 30))
+  fig_ALL_cap <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL, heights = c(0.05, 1), nrow = 2)
+  
+  # Save and exit
+  ggsave(paste0("figures/MHW_monthly_ecoregions_",year_choice,"_",match(month_choice, month.abb),".png"), 
+         fig_ALL_cap, height = 18, width = 7)
 }
 
 
@@ -600,7 +647,14 @@ plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
 
 # Map summaries -----------------------------------------------------------
 
+# Subset monthly gird for desired figures
+sub_monthly_grid <- full_monthly_grid[, 1:2] %>% 
+  filter(year >= 2015, month %in% c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov")) %>% 
+  distinct() %>% 
+  mutate(plyr_idx = 1:n())
 
+# Create plots
+plyr::d_ply(sub_monthly_grid, c("plyr_idx"), monthly_map_fig, .parallel = F)
 
 
 # Trend summaries ---------------------------------------------------------
