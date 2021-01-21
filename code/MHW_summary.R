@@ -10,6 +10,9 @@ library(sf)
 library(sfheaders)
 library(doParallel); registerDoParallel(cores = 7)
 
+# Disable scientific notation
+options(scipen = 999)
+
 # The file location
 res_files <- dir("data/MHW", full.names = T)
 
@@ -55,51 +58,6 @@ med_base <- ggplot() +
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
         panel.background = element_rect(fill = "grey90"))
-
-# Disable scientific notation
-options(scipen = 999)
-
-
-# Ecoregions --------------------------------------------------------------
-
-# Load MEOW
-MEOW <- read_sf("metadata/MEOW/meow_ecos.shp") %>% 
-  filter(PROVINCE == "Mediterranean Sea")
-
-## Create Northwestern + Southwestern Mediterranean regions
-# Extract lon/lat values
-MEOW_sub <- MEOW %>% 
-  filter(ECOREGION == "Western Mediterranean") %>% 
-  dplyr::select(geometry)
-MEOW_sub <- as.data.frame(MEOW_sub$geometry[[1]][[1]]) %>%
-  `colnames<-`(c("lon", "lat"))
-# Create polygons for each new region
-NW_polygon <- MEOW_sub %>%
-  filter(lat >= 39.1) %>% 
-  sf_multipolygon()
-st_crs(NW_polygon) <- 4326
-  # st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
-  # summarise(geometry = st_combine(geometry)) %>%
-  # st_cast("POLYGON")
-SW_polygon <- MEOW_sub %>%
-  filter(lat <= 39.3) %>% 
-  sf_multipolygon()
-st_crs(SW_polygon) <- 4326
-  # st_as_sf(coords = c("lon", "lat"), crs = 4326) %>%
-  # summarise(geometry = st_combine(geometry)) %>%
-  # st_cast("POLYGON")
-# Create new data.frame
-MEOW_new <- MEOW[c(7,7),] %>% 
-  mutate(ECOREGION = c("Northwestern Mediterranean", 
-                       "Southwestern Mediterranean"),
-         geometry = c(NW_polygon$geometry, SW_polygon$geometry))
-# Reintroduce to MEOW
-MEOW <- rbind(MEOW[-7,], MEOW_new)
-plot(MEOW$geometry)
-
-# Find SST pixels within Med MEOW
-registerDoParallel(cores = 7)
-med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel = T)
 
 
 # Functions ---------------------------------------------------------------
@@ -307,7 +265,7 @@ region_summary_fig <- function(region_sub,
     mutate(value = case_when(name != c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
                              TRUE ~ value),
            name = factor(name,
-                         levels = c("surface", "max_int", "mean_int", "cum_int", "duration",
+                         levels = c("surface", "duration", "max_int", "mean_int", "cum_int",
                                     "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
     ggplot(aes(x = year, y = value, colour = month)) +
     geom_point() +
@@ -510,33 +468,11 @@ ecoregions_summary_fig <- function(){
 }
 
 # Function to create monthly maps of warm season 2015-2019
-# Show maps for the different statistics as different panels
-# Surface area, duration, max, mean, cumulative intensity
-# Six panel can be for the legend
-# year_mon <- "2015 Jun"
-monthly_map_fig <- function(df){
-  
-  # Set year and month for plotting
-  year_choice <- df$year
-  month_choice <- df$month
-  
-  # Create common scales
-  common_scales <- MHW_cat_region %>% 
-    mutate(cum_int = cum_int/pixels, 
-           duration = duration/pixels) %>% 
-    dplyr::select(surface, max_int, mean_int, cum_int, duration) %>% 
-    na.omit() %>% 
-    distinct()
+monthly_map_fig_one <- function(month_choice, year_choice, common_scales){
   
   # Filter data
   monthly_data <- MHW_cat_region %>% 
     filter(year == year_choice, month == month_choice) %>% 
-    # pivot_longer(cols = surface:`IV Extreme`) %>% 
-    # mutate(value = case_when(name != c("surface", "max_int", "mean_int") & pixels > 0 ~ value/pixels,
-    #                          TRUE ~ value),
-    #        name = factor(name,
-    #                      levels = c("surface", "max_int", "mean_int", "cum_int", "duration",
-    #                                 "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
   ## Plot summaries per variable
@@ -578,11 +514,67 @@ monthly_map_fig <- function(df){
                                plot_max_int, plot_cum_int, ncol = 1)
   fig_ALL_cap <- grid::textGrob(fig_title, x = 0.01, just = "left", gp = grid::gpar(fontsize = 30))
   fig_ALL_cap <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL, heights = c(0.05, 1), nrow = 2)
+  return(fig_ALL_cap)
+}
+
+# Figure to stick one year of plots together
+monthly_map_fig_full <- function(year_choice){
+  
+  # Create common scales
+  common_scales <- MHW_cat_region %>% 
+    mutate(cum_int = cum_int/pixels, 
+           duration = duration/pixels) %>% 
+    dplyr::select(surface, max_int, mean_int, cum_int, duration) %>% 
+    na.omit() %>% 
+    distinct()
+  
+  # Create the six months of figures
+  fig_jun <- monthly_map_fig_one("Jun", year_choice, common_scales)
+  fig_jul <- monthly_map_fig_one("Jul", year_choice, common_scales)
+  fig_aug <- monthly_map_fig_one("Aug", year_choice, common_scales)
+  fig_sep <- monthly_map_fig_one("Sep", year_choice, common_scales)
+  fig_oct <- monthly_map_fig_one("Oct", year_choice, common_scales)
+  fig_nov <- monthly_map_fig_one("Nov", year_choice, common_scales)
   
   # Save and exit
-  ggsave(paste0("figures/MHW_monthly_ecoregions_",year_choice,"_",match(month_choice, month.abb),".png"), 
-         fig_ALL_cap, height = 18, width = 7)
+  fig_full <- ggpubr::ggarrange(fig_jun, fig_jul, fig_aug, fig_sep, fig_oct, fig_nov, nrow = 1)
+  ggsave(paste0("figures/MHW_monthly_ecoregions_",year_choice,".png"), fig_full, height = 18, width = 42)
 }
+
+
+# Ecoregions --------------------------------------------------------------
+
+# Load MEOW
+MEOW <- read_sf("metadata/MEOW/meow_ecos.shp") %>% 
+  filter(PROVINCE == "Mediterranean Sea")
+
+## Create Northwestern + Southwestern Mediterranean regions
+# Extract lon/lat values
+MEOW_sub <- MEOW %>% 
+  filter(ECOREGION == "Western Mediterranean") %>% 
+  dplyr::select(geometry)
+MEOW_sub <- as.data.frame(MEOW_sub$geometry[[1]][[1]]) %>%
+  `colnames<-`(c("lon", "lat"))
+# Create polygons for each new region
+NW_polygon <- MEOW_sub %>%
+  filter(lat >= 39.1) %>% 
+  sf_multipolygon()
+st_crs(NW_polygon) <- 4326
+SW_polygon <- MEOW_sub %>%
+  filter(lat <= 39.3) %>% 
+  sf_multipolygon()
+st_crs(SW_polygon) <- 4326
+# Create new data.frame
+MEOW_new <- MEOW[c(7,7),] %>% 
+  mutate(ECOREGION = c("Northwestern Mediterranean", 
+                       "Southwestern Mediterranean"),
+         geometry = c(NW_polygon$geometry, SW_polygon$geometry))
+# Reintroduce to MEOW
+MEOW <- rbind(MEOW[-7,], MEOW_new)
+
+# Find SST pixels within Med MEOW
+registerDoParallel(cores = 7)
+med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel = T)
 
 
 # Annual summaries --------------------------------------------------------
@@ -647,14 +639,9 @@ plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
 
 # Map summaries -----------------------------------------------------------
 
-# Subset monthly gird for desired figures
-sub_monthly_grid <- full_monthly_grid[, 1:2] %>% 
-  filter(year >= 2015, month %in% c("Jun", "Jul", "Aug", "Sep", "Oct", "Nov")) %>% 
-  distinct() %>% 
-  mutate(plyr_idx = 1:n())
-
 # Create plots
-plyr::d_ply(sub_monthly_grid, c("plyr_idx"), monthly_map_fig, .parallel = F)
+# NB: Do not run in parallel
+plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = F)
 
 
 # Trend summaries ---------------------------------------------------------
