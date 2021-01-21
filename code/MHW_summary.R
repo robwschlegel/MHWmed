@@ -86,7 +86,8 @@ load_cat_daily <- function(file_name, lon_range = FALSE){
     unnest(cat) %>% 
     ungroup() %>% 
     mutate(category = factor(category),
-           year = lubridate::year(t))
+           year = lubridate::year(t),
+           month = lubridate::month(t, label = T, abb = T))
   
   if(lon_range){
     cat_clim <- cat_clim %>% 
@@ -107,32 +108,34 @@ cat_pixel_calc <- function(file_name){
   
   # The sum of intensities per pixel for the year
   MHW_intensity <- MHW_cat %>% 
-    group_by(lon, lat, year) %>% 
-    summarise(intensity_sum = sum(intensity), .groups = "drop")
+    group_by(lon, lat, year, month) %>% 
+    summarise(cum_int = sum(intensity), .groups = "drop")
   
   # The count of the highest category of each event in each pixel
   MHW_cat_count <- MHW_cat %>% 
-    group_by(lon, lat, year, event_no) %>% 
+    group_by(lon, lat, year, month, event_no) %>% 
     summarise(category = max(as.integer(category), na.rm = T), .groups = "drop") %>% 
     mutate(category = factor(category, levels = c(1:4),
                             labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
     dplyr::select(-event_no) %>%
-    group_by(lon, lat, year, category) %>%
+    group_by(lon, lat, year, month, category) %>%
     summarise(count = n(), .groups = "drop") %>% 
     group_by(lon, lat) %>% 
-    right_join(full_annual_grid, by = c("year", "category")) %>% # This used to be a left join...
+    right_join(full_monthly_grid, by = c("year", "month", "category")) %>% # This used to be a left join...
     pivot_wider(values_from = count, names_from = category) %>% 
     replace(is.na(.), 0)
   
   # The earliest date of the highest category of event
   MHW_cat_pixel <- MHW_cat %>% 
-    group_by(lon, lat, year) %>%
+    group_by(lon, lat, year, month) %>%
     filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>% 
     filter(t == min(t)) %>% 
+    dplyr::rename(max_int = intensity) %>% 
     unique() %>%
     data.frame() %>% 
-    left_join(MHW_intensity, by = c("lon", "lat", "year")) %>% 
-    left_join(MHW_cat_count, by = c("lon", "lat", "year"))
+    left_join(MHW_intensity, by = c("lon", "lat", "year", "month")) %>% 
+    left_join(MHW_cat_count, by = c("lon", "lat", "year", "month")) %>% 
+    dplyr::select(lon, lat, year, month, t, event_no, category, everything())
   
   # Clean up and exit
   rm(MHW_cat, MHW_intensity, MHW_cat_count); gc()
@@ -178,13 +181,12 @@ region_calc <- function(region_name){
     right_join(region_coords, by = c("lon", "lat"))
   gc() # Free up some RAM
   
-  # Count of category days per year, month, region
-  cat_count <- cat_daily %>% 
-    group_by(year, month, category) %>% 
-    summarise(count = n()/nrow(region_coords), .groups = "drop") %>% 
-    right_join(full_monthly_grid, by = c("year", "month", "category")) %>% 
-    pivot_wider(values_from = count, names_from = category) %>% 
-    replace(is.na(.), 0)
+  # Number of pixels each month that experience a MHW
+  cat_pixels <- cat_daily %>% 
+    dplyr::select(lon, lat, year, month) %>% 
+    group_by(year, month) %>% 
+    distinct() %>% 
+    summarise(pixels = n(), .groups = "drop")
   
   # Spatial coverage
   cat_surface <- cat_daily %>% 
@@ -195,30 +197,36 @@ region_calc <- function(region_name){
     right_join(distinct(full_monthly_grid[,1:2]), by = c("year", "month")) %>% 
     replace(is.na(.), 0)
   
+  # Count of category days per year, month, region
+  # Don't calculate values that account for pixels with NO MHW
+  # We only want to know about temperature anomalies from MHWs
+  cat_count <- cat_daily %>% 
+    group_by(year, month, category) %>% 
+    summarise(count = n(), .groups = "drop") %>% 
+    right_join(full_monthly_grid, by = c("year", "month", "category")) %>% 
+    pivot_wider(values_from = count, names_from = category) %>% 
+    replace(is.na(.), 0)
+  
   # Calculations for MHW metrics
   cat_calc <- cat_daily %>% 
     group_by(year, month) %>% 
-    summarise(duration = n()/nrow(region_coords),
+    summarise(duration = n(),
               max_int = max(intensity),
               mean_int = mean(intensity),
-              mean_sum_int = sum(intensity)/nrow(region_coords), .groups = "drop") %>% 
-    
-    # Need to add cumulative intensity to the output
-    # Don't calculate values that account for pixels with NO MHW
-    # We only want to know about temperature anomalies from MHWs
-    
-    pivot_longer(duration:mean_sum_int) %>% 
+              cum_int = sum(intensity), .groups = "drop") %>% 
+    pivot_longer(duration:cum_int) %>% 
     right_join(expand.grid(year = seq(1982, 2019), 
                            month = lubridate::month(seq(1:12), label = T, abb = T),
-                           name = c("duration", "max_int", "mean_int", "mean_sum_int")), 
+                           name = c("duration", "max_int", "mean_int", "cum_int")), 
                by = c("year", "month", "name")) %>% 
     pivot_wider(values_from = value, names_from = name) %>% 
-    replace(is.na(.), 0) %>% 
     arrange(year, month) %>% 
+    left_join(cat_pixels, by = c("year", "month")) %>% 
     left_join(cat_count, by = c("year", "month")) %>% 
     left_join(cat_surface, by = c("year", "month")) %>% 
+    replace(is.na(.), 0) %>% 
     mutate(region = region_name) %>% 
-    dplyr::select(region, year, month, surface, max_int:mean_sum_int, duration, everything())
+    dplyr::select(region, year, month, pixels, surface, max_int:cum_int, duration, everything())
   
   # Clean up and exit
   rm(region_coords, file_sub, cat_daily, cat_count, cat_surface); gc()
@@ -248,11 +256,11 @@ region_summary_fig <- function(region_sub,
            month %in% month_range) %>% 
     pivot_longer(cols = surface:`IV Extreme`) %>% 
     mutate(name = factor(name,
-                         levels = c("surface", "max_int", "mean_int", "mean_sum_int", "duration",
+                         levels = c("surface", "max_int", "mean_int", "cum_int", "duration",
                                     "I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
     ggplot(aes(x = year, y = value, colour = month)) +
     geom_point() +
-    geom_line(alpha = 0.5) +
+    # geom_line(alpha = 0.5) +
     geom_smooth(method = "lm", se = F, linetype = "dashed") +
     facet_wrap(~name, scales = "free_y") +
     labs(y = NULL, title = region_sub)
@@ -472,10 +480,25 @@ med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel =
 
 # Annual summaries --------------------------------------------------------
 
-# The occurrences per pixel
+# The occurrences per month per pixel
 # system.time(
-# MHW_cat_pixel_annual <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
-# ) # 435 seconds on 7 cores
+# MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
+# ) # ~15 minutes on 7 cores
+# save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
+load("data/MHW_cat_pixel_monthly.RData")
+
+# The occurrences per year per pixel
+# MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>% 
+#   dplyr::select(lon, lat, year, cum_int:`IV Extreme`) %>% 
+#   group_by(lon, lat, year) %>% 
+#   summarise_all(sum)
+# MHW_cat_pixel_annual <- MHW_cat_pixel_monthly %>% 
+#   group_by(lon, lat, year) %>% 
+#   filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>% 
+#   filter(t == min(t)) %>% 
+#   dplyr::select(lon:category, max_int) %>% 
+#   unique() %>%
+#   left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year"))
 # save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_pixel_annual.RData")
 
@@ -497,17 +520,17 @@ load("data/MHW_cat_daily_annual.RData")
 # readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
 load("data/MHW_cat_region.RData")
 
-# Total reional summaries
-plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T)
+# Total regional summaries
+# plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T)
 
 # Only the warm months JJASON
-plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
-            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+# plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
+#             month_range = lubridate::month(seq(6, 11), label = T, abb = T))
 
 # Only the warm months JJASON for 2015 - 2019
-plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
-            year_range = seq(2015, 2019),
-            month_range = lubridate::month(seq(6, 11), label = T, abb = T))
+# plyr::l_ply(unique(med_regions$region), region_summary_fig, .parallel = T,
+#             year_range = seq(2015, 2019),
+#             month_range = lubridate::month(seq(6, 11), label = T, abb = T))
 
 
 # Trend summaries ---------------------------------------------------------
