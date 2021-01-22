@@ -1,6 +1,13 @@
 # code/MHW_summary.R
 # This script creates annual and total summaries from the MHW Med results
 
+# TODO: Create map summaries that show the per pixel values for the focal metrics
+# Add labels to these figures that show the summary stats for the ecoregions
+# These per pixel maps could also show the max category experienced
+# Focus on duration and category for these figures
+# Organise these with one row showing all months in one year
+# And each row is a new year
+
 
 # Setup -------------------------------------------------------------------
 
@@ -250,7 +257,7 @@ region_calc <- function(region_name){
     summarise(pixels = sum(pixels),
               surface = sum(surface),
               duration = sum(duration),
-              max_int = max(max_int),
+              max_int = mean(max_int),
               mean_int = mean(mean_int),
               cum_int = sum(cum_int),
               `I Moderate` = sum(`I Moderate`),
