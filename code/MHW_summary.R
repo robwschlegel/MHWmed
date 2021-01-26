@@ -249,9 +249,9 @@ region_calc <- function(region_name){
     filter(lat %in% region_coords$lat)
   
   # load necessary files
-  registerDoParallel(cores = 7)
+  # registerDoParallel(cores = 7)
   cat_res <- plyr::ldply(res_files[file_sub$lat_index], region_proc,
-                         .parallel = T,
+                         .parallel = F,
                          region_coords = region_coords) %>% 
     group_by(region, year, month) %>%
     summarise(pixels = sum(pixels),
