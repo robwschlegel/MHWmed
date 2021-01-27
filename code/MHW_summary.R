@@ -349,9 +349,12 @@ ecoregion_summary_fig <- function(region_sub,
 # Annual summary figure
 annual_summary_fig <- function(chosen_year){
   
+  paste0("Started run on ",chosen_year," at ", Sys.time())
+  
   # Chose the year of categories to display
   MHW_cat_filter <- filter(MHW_cat_summary_annual, year == chosen_year)
   MHW_cat_pixel_filter <- filter(MHW_cat_pixel_annual, year == chosen_year)
+  gc()
   
   # Extract small data.frame for easier labelling
   MHW_cat_filter_labels <- MHW_cat_filter %>% 
@@ -361,7 +364,8 @@ annual_summary_fig <- function(chosen_year){
     mutate(label_first_n_cum = cumsum(first_n_cum_prop))
   
   # Title
-  fig_title <- paste0("Mediterranean MHWs: ",chosen_year)
+  fig_title <- paste0("Mediterranean MHW categories of ",chosen_year,
+                      "\nNOAA Med SST ~4km; Climatogy period: 1982-2011")
   
   ## Create figures
   # Global map of MHW occurrence
@@ -410,7 +414,7 @@ annual_summary_fig <- function(chosen_year){
                        breaks = seq(0.2, 0.8, length.out = 4),
                        labels = paste0(seq(20, 80, by = 20), "%")) +
     scale_x_date(date_breaks = "2 months", date_labels = "%Y-%m") +
-    labs(y = "Top MHW category\n(cumulative)", x = "Day of first occurrence") +
+    labs(y = "Top MHW category per pixel\n(cumulative)", x = "Day of first occurrence") +
     coord_cartesian(expand = F) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
           axis.title = element_text(size = 15),
@@ -425,7 +429,7 @@ annual_summary_fig <- function(chosen_year){
     scale_y_continuous(breaks = round(seq(sum(MHW_cat_filter_labels$cat_n_cum_prop)*0.25,
                                           sum(MHW_cat_filter_labels$cat_n_cum_prop)*0.75, length.out = 3), 0)) +
     scale_x_date(date_breaks = "2 months", date_labels = "%Y-%m") +  
-    labs(y = "Average MHW days\n(cumulative)", x = "Day of the year") +
+    labs(y = "Average MHW days per pixel\n(cumulative)", x = "Day of the year") +
     coord_cartesian(expand = F) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
           axis.title = element_text(size = 15),
@@ -446,6 +450,8 @@ annual_summary_fig <- function(chosen_year){
   # print("Saving final figure")
   ggsave(fig_ALL_cap, height = 12, width = 18, 
          filename = paste0("figures/MHW_cat_summary_",chosen_year,".png"))
+  # RAM help
+  rm(MHW_cat_filter, MHW_cat_pixel_filter);gc()
 }
 
 # total summary figure
@@ -517,13 +523,18 @@ total_summary_fig <- function(){
   # fig_prop_historic
   
   # Create the figure title
-  fig_title <- paste0("Mediterranean MHW category summaries: 1982 - 2019")
+  min_year <- min(cat_daily_mean$year)
+  max_year <- max(cat_daily_mean$year)
+  fig_title <- paste0("Mediterranean MHW categories summary: ",min_year," - ", max_year, 
+                      "\nNOAA Med SST ~4km; Climatogy period: 1982-2011")
   
   # Stick them together and save
   fig_ALL_historic <- ggpubr::ggarrange(fig_count_historic, fig_cum_historic, fig_prop_historic,
-                                        ncol = 3, align = "hv", labels = c("(A)", "(B)", "(C)"), hjust = -0.1,
+                                        ncol = 3, align = "hv", labels = c("A)", "B)", "C)"), hjust = -0.1,
                                         font.label = list(size = 14), common.legend = T, legend = "bottom")
-  ggsave(fig_ALL_historic, filename = "figures/MHW_cat_historic.png", height = 4.25, width = 12)
+  fig_ALL_cap <- grid::textGrob(fig_title, x = 0.01, just = "left", gp = grid::gpar(fontsize = 20))
+  fig_ALL_full <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL_historic, heights = c(0.25, 1), nrow = 2)
+  ggsave(fig_ALL_full, filename = "figures/MHW_cat_historic.png", height = 4.25, width = 12)
 }
 
 # Function to create monthly maps of warm season 2015-2019
@@ -683,17 +694,17 @@ load("data/MHW_cat_region.RData")
 
 # Ecoregion summary figures -----------------------------------------------
 
-plyr::l_ply(unique(med_regions$region), ecoregion_summary_fig, .parallel = T)
+# plyr::l_ply(unique(med_regions$region), ecoregion_summary_fig, .parallel = T)
 
 
 # Ecoregion trend figures -------------------------------------------------
 
-plyr::l_ply(unique(med_regions$region), ecoregion_trend_fig, .parallel = T)
+# plyr::l_ply(unique(med_regions$region), ecoregion_trend_fig, .parallel = T)
 
 
 # Map summary figures -----------------------------------------------------
 
-plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
+# plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
 
 
 # Total summaries ---------------------------------------------------------
@@ -726,12 +737,15 @@ plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
 load("data/MHW_cat_summary_annual.RData")
 
 
-# Figures -----------------------------------------------------------------
+# Summary figures ---------------------------------------------------------
+
 # NB: These require objects to be in the environment that are added by the above code
 # They are not standalone functions...
 
 # Create annual summary figures
-# plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
+# NB: This is very RAM heavy
+doParallel::registerDoParallel(cores = 2)
+plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
 # total_summary_fig()
