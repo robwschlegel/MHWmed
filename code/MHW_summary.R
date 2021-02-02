@@ -616,41 +616,34 @@ monthly_map_fig_full <- function(year_choice){
 # Figure that plots the per pixel maps
 monthly_map_pixel <- function(var_choice, 
                               year_range = seq(2015, 2019), 
-                              month_range = lubridate::month(seq(6, 11), label = T, abb = T)){
+                              month_range = lubridate::month(seq(6, 11), label = F, abb = T)){
   
   # Reduce the dataframe to the desired  dimensions
   MHW_cat_pixel_filter <- MHW_cat_pixel_monthly %>% 
     filter(year %in% year_range,
            month %in% month_range)
   
-  # Ecoregions for fecetting
+  # Ecoregions for faceting
   monthly_MEOW <- MHW_cat_region %>% 
+    mutate(month = as.integer(month)) %>% 
     filter(year %in% year_range, month %in% month_range) %>% 
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
   # Global map of MHW occurrence
-  med_base + 
+  multi_panel <- med_base + 
     geom_tile(data = MHW_cat_pixel_filter, colour = NA,
-              aes_string(fill = var_choice, x = lon, y = lat)) +
+              aes_string(fill = var_choice, x = "lon", y = "lat")) +
     geom_sf(data = monthly_MEOW, alpha = 0.9, aes(geometry = geometry), fill = NA) +
-    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50))
-  fig_map <- ggplot(MHW_cat_pixel_filter, aes(x = lon, y = lat)) +
-    # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-    geom_tile(aes_string(fill = var_choice), colour = NA) +
-    geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
-    geom_sf(data = monthly_MEOW, aes(geometry = geometry), fill = NA) +
-    # scale_fill_manual("Category", values = MHW_colours) +
-    coord_cartesian(expand = F, 
-                    xlim = c(min(med_sea_coords$lon), max(med_sea_coords$lon)),
-                    ylim = c(min(med_sea_coords$lat), max(med_sea_coords$lat))) +
-    theme_void() +
-    guides(fill = guide_legend(override.aes = list(size = 10))) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
           legend.position = "bottom",
           legend.text = element_text(size = 14),
           legend.title = element_text(size = 16),
           panel.background = element_rect(fill = "grey90")) + 
     facet_grid(year ~ month)
+  if(var_choice == "duration") multi_panel <- multi_panel + scale_fill_viridis_c("Duration")
+  if(var_choice == "category") multi_panel <- multi_panel + scale_fill_manual("Category", values = MHW_colours)
+  return(multi_panel)
 }
 
 
@@ -700,18 +693,18 @@ med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel =
 load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
 
 # The occurrences per year per pixel
-MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>%
-  dplyr::select(lon, lat, year, cum_int:`IV Extreme`) %>%
-  group_by(lon, lat, year) %>%
-  summarise_all(sum)
-MHW_cat_pixel_annual <- MHW_cat_pixel_monthly %>%
-  group_by(lon, lat, year) %>%
-  filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>%
-  filter(t == min(t)) %>%
-  dplyr::select(lon:category, max_int) %>%
-  unique() %>%
-  left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year"))
-save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
+# MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>%
+#   dplyr::select(lon, lat, year, cum_int:`IV Extreme`) %>%
+#   group_by(lon, lat, year) %>%
+#   summarise_all(sum)
+# MHW_cat_pixel_annual <- MHW_cat_pixel_monthly %>%
+#   group_by(lon, lat, year) %>%
+#   filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>%
+#   filter(t == min(t)) %>%
+#   dplyr::select(lon:category, max_int) %>%
+#   unique() %>%
+#   left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year"))
+# save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_pixel_annual.RData")
 
 # The occurrences per day
@@ -790,4 +783,10 @@ load("data/MHW_cat_summary_annual.RData")
 
 # Create total summary figure
 # total_summary_fig()
+
+# Per pixel maps
+map_pixel_duration <- monthly_map_pixel("duration")
+ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 8, width = 20)
+map_pixel_category <- monthly_map_pixel("category")
+ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 8, width = 20)
 
