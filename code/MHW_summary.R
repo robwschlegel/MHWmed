@@ -612,6 +612,12 @@ monthly_map_fig_full <- function(year_choice){
   ggsave(paste0("figures/MHW_monthly_ecoregions_",year_choice,".png"), fig_full, height = 18, width = 42)
 }
 
+# Figure that plots the per pixel maps
+monthly_map_pixel <- function(var_choice){
+  
+  
+}
+
 
 # Ecoregions --------------------------------------------------------------
 
@@ -655,7 +661,7 @@ med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel =
 # MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
 # ) # ~15 minutes on 7 cores
 # save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
-# load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
+load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
 
 # The occurrences per year per pixel
 # MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>% 
@@ -678,7 +684,6 @@ load("data/MHW_cat_pixel_annual.RData")
 # ) # 258 seconds on 7 cores
 # save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
 load("data/MHW_cat_daily_annual.RData")
-
 
 
 # Ecoregion summaries -----------------------------------------------------
@@ -744,8 +749,8 @@ load("data/MHW_cat_summary_annual.RData")
 
 # Create annual summary figures
 # NB: This is very RAM heavy
-doParallel::registerDoParallel(cores = 2)
-plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
+# doParallel::registerDoParallel(cores = 2)
+# plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
 # total_summary_fig()
