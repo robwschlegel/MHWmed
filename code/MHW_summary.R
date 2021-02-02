@@ -621,20 +621,24 @@ monthly_map_pixel <- function(var_choice,
   # Reduce the dataframe to the desired  dimensions
   MHW_cat_pixel_filter <- MHW_cat_pixel_monthly %>% 
     filter(year %in% year_range,
-           month %in% month_range) %>% 
-    left_join(MEOW, by = c("region" = "ECOREGION"))
+           month %in% month_range)
   
   # Ecoregions for fecetting
-  monthly_data <- MHW_cat_region %>% 
-    filter(year == year_choice, month == month_choice) %>% 
+  monthly_MEOW <- MHW_cat_region %>% 
+    filter(year %in% year_range, month %in% month_range) %>% 
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
   # Global map of MHW occurrence
+  med_base + 
+    geom_tile(data = MHW_cat_pixel_filter, colour = NA,
+              aes_string(fill = var_choice, x = lon, y = lat)) +
+    geom_sf(data = monthly_MEOW, alpha = 0.9, aes(geometry = geometry), fill = NA) +
+    coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50))
   fig_map <- ggplot(MHW_cat_pixel_filter, aes(x = lon, y = lat)) +
     # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
     geom_tile(aes_string(fill = var_choice), colour = NA) +
     geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
-    # geom_sf(data = MEOW, aes(geometry = geometry, fill = NA)) +
+    geom_sf(data = monthly_MEOW, aes(geometry = geometry), fill = NA) +
     # scale_fill_manual("Category", values = MHW_colours) +
     coord_cartesian(expand = F, 
                     xlim = c(min(med_sea_coords$lon), max(med_sea_coords$lon)),
@@ -688,26 +692,26 @@ med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel =
 # Annual summaries --------------------------------------------------------
 
 # The occurrences per month per pixel
-doParallel::registerDoParallel(cores = 15)
-system.time(
-MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
-) # ~15 minutes on 7 cores, 344 seconds on 15 cores
-save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
+# doParallel::registerDoParallel(cores = 15)
+# system.time(
+# MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
+# ) # ~15 minutes on 7 cores, 344 seconds on 15 cores
+# save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
 load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
 
 # The occurrences per year per pixel
-# MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>% 
-#   dplyr::select(lon, lat, year, cum_int:`IV Extreme`) %>% 
-#   group_by(lon, lat, year) %>% 
-#   summarise_all(sum)
-# MHW_cat_pixel_annual <- MHW_cat_pixel_monthly %>% 
-#   group_by(lon, lat, year) %>% 
-#   filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>% 
-#   filter(t == min(t)) %>% 
-#   dplyr::select(lon:category, max_int) %>% 
-#   unique() %>%
-#   left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year"))
-# save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
+MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>%
+  dplyr::select(lon, lat, year, cum_int:`IV Extreme`) %>%
+  group_by(lon, lat, year) %>%
+  summarise_all(sum)
+MHW_cat_pixel_annual <- MHW_cat_pixel_monthly %>%
+  group_by(lon, lat, year) %>%
+  filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>%
+  filter(t == min(t)) %>%
+  dplyr::select(lon:category, max_int) %>%
+  unique() %>%
+  left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year"))
+save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_pixel_annual.RData")
 
 # The occurrences per day
