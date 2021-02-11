@@ -154,7 +154,7 @@ cat_pixel_calc <- function(file_name){
     group_by(lon, lat, year, month, event_no) %>% 
     summarise(category = max(as.integer(category), na.rm = T), .groups = "drop") %>% 
     mutate(category = factor(category, levels = c(1:4),
-                            labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
+                             labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
     dplyr::select(-event_no) %>%
     group_by(lon, lat, year, month, category) %>%
     summarise(count = n(), .groups = "drop") %>% 

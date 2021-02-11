@@ -5,15 +5,12 @@
 # Setup -------------------------------------------------------------------
 
 # Needed packages
-library(tidyverse)
-library(tidync)
-library(ncdf4)
-library(abind)
-
-# For test visuals
-library(lattice)
-library(RColorBrewer)
-
+library(dplyr) # For basic data manipulation
+library(tidyr) # For unnesting
+library(ncdf4) # For creating NetCDF files
+library(tidync) # For easily dealing with NetCDF data
+library(ggplot2) # For visualising data
+library(doParallel) # For parallel processing
 
 # Original SST files for reference
 med_SST_files <- dir("data/SST", pattern = ".nc", full.names = T, recursive = T)
@@ -35,80 +32,18 @@ MHW_files <- dir("data/MHW", full.names = T)
 
 # Functions ---------------------------------------------------------------
 
-# Function for creating arrays from data.frames
-# df <- filter(df_step, t == 5786)
-df_acast <- function(df){
+# Load an Rds MHW result file and return only event+cat data
+Rds_to_event_cat <- function(file_name){
   
-  # Ensure correct grid size
-  med_coords_sub <- med_coords %>% 
-    filter(lat == df$lat[1])
-  
-  # Round data for massive file size reduction
-  df$temp <- round(df$temp, 2)
-  
-  # Force grid
-  res <- df %>%
-    right_join(med_coords_sub, by = c("lon", "lat")) %>% 
-    arrange(lon, lat)
-  
-  # Create array
-  res_array <- base::array(res$temp, dim = c(1305,1,1))
-  dimnames(res_array) <- list(lon = unique(med_coords_sub$lon),
-                              lat = unique(med_coords_sub$lat),
-                              t = unique(na.omit(res$t)))
-  return(res_array)
-}
-
-# Wrapper function for last step before data are entered into NetCDF files
-# df <- all_clim
-df_proc <- function(df){
-  
-  # Filter NA and convert dates to integer
-  df_step <- df[,1:5] %>% 
-    mutate(temp = ifelse(is.na(temp), NA, temp),
-           t = as.integer(t)) %>% 
-    na.omit()
-  
-  # Acast
-  dfa <- df_step %>%
-    mutate(t2 = t) %>% 
-    group_by(t2) %>%
-    nest() %>%
-    mutate(data2 = purrr::map(data, df_acast)) %>%
-    select(-data)
-  
-  # Final form
-  dfa_res <- abind(dfa$data2, along = 3, hier.names = T)
-  rm(df_step, dfa); gc()
-  # dimnames(dfa_res)
-  return(dfa_res)
-}
-
-# Load a Rds file and save it as NetCDF
-# file_name <- MHW_files[1]
-Rds_to_NetCDF <- function(file_name){
-
-  # Load R file
+  # Load Rds MHW result file
   MHW_res <- readRDS(file_name)
   
   # Extract the four different data.frames
-  event_clim <- MHW_res %>% 
-    dplyr::select(-cat) %>% 
-    unnest(event) %>% 
-    filter(row_number() %% 2 == 1) %>% 
-    unnest(event) %>% 
-    ungroup()
   event_event <- MHW_res %>% 
     dplyr::select(-cat) %>% 
     unnest(event) %>% 
     filter(row_number() %% 2 == 0) %>% 
     unnest(event) %>% 
-    ungroup()
-  cat_clim <- MHW_res %>% 
-    dplyr::select(-event) %>% 
-    unnest(cat) %>% 
-    filter(row_number() %% 2 == 1) %>% 
-    unnest(cat) %>% 
     ungroup()
   cat_event <- MHW_res %>% 
     dplyr::select(-event) %>% 
@@ -116,76 +51,166 @@ Rds_to_NetCDF <- function(file_name){
     filter(row_number() %% 2 == 0) %>% 
     unnest(cat) %>% 
     ungroup()
+  rm(MHW_res); gc()
   
-  # Combine same shaped dataframes
-  all_clim <- left_join(event_clim, cat_clim, by = c("lon", "lat", "t", "event_no")) #%>% 
-    # filter(lon < -18) # For testing
+  # Combine
   all_event <- left_join(event_event, cat_event, 
                          by = c("lon", "lat", "event_no", "duration", 
-                                "intensity_max" = "i_max", "date_peak" = "peak_date")) #%>% 
-    # filter(lon < -18) # For testing
+                                "intensity_max" = "i_max", "date_peak" = "peak_date")) %>%
+    dplyr::select(lon:event_no, duration:intensity_max, intensity_cumulative,
+                  rate_onset, rate_decline, category) %>%
+    mutate(category = factor(category, levels = c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
+  # filter(lon < -18) # For testing
+  rm(event_event, cat_event); gc()
+  return(all_event)
+}
+
+# Function for creating arrays from data.frames
+df_acast <- function(df, lon_lat){
+  
+  # Force grid
+  res <- df %>%
+    right_join(lon_lat, by = c("lon", "lat")) %>%
+    arrange(lon, lat)
+  
+  # Convert date values to integers if they are present
+  if(lubridate::is.Date(res[1,4])) res[,4] <- as.integer(res[,4])
+  
+  # Convert factors to integers if they are present
+  if(is.factor(res[1,4])) res[,4] <- as.integer(res[,4])
+  
+  # Create array
+  res_array <- base::array(res[,4], dim = c(length(unique(lon_lat$lon)), length(unique(lon_lat$lat))))
+  dimnames(res_array) <- list(lon = unique(lon_lat$lon),
+                              lat = unique(lon_lat$lat))
+  return(res_array)
+}
+
+# Wrapper function for last step before data are entered into NetCDF files
+df_proc <- function(df, col_choice, lon_lat = NA){
+  
+  if(is.na(lon_lat[1,1])){
+    # Determine the correct array dimensions
+    lon_step <- mean(diff(sort(unique(df$lon))))
+    lat_step <- mean(diff(sort(unique(df$lat))))
+    lon <- seq(min(df$lon), max(df$lon), by = lon_step)
+    lat <- seq(min(df$lat), max(df$lat), by = lat_step)
+    
+    # Create full lon/lat grid
+    lon_lat <- expand.grid(lon = lon, lat = lat) %>% 
+      data.frame()
+  }
+  
+  # Acast only the desired column
+  dfa <- plyr::daply(df[c("lon", "lat", "event_no", col_choice)], 
+                     c("event_no"), df_acast, .parallel = T, lon_lat = lon_lat)
+  return(dfa)
+}
+
+# Save event data.frame to NetCDF
+# event_data <- Rds_to_event_cat(MHW_files[1])
+event_to_NetCDF <- function(event_data, lon_lat = NA){
   
   # Process data for adding to NetCDF file
-  # Convert single columns in data.frames into arrays
-  proc_clim <- df_proc(all_clim)
+  # We must now run this function on each column of data we want to add to the NetCDF file
+  doParallel::registerDoParallel(cores = 14)
+  print(paste0("Began prepping dates at ", Sys.time()))
+  prep_start <- df_proc(event_data, "date_start", lon_lat)
+  prep_peak <- df_proc(event_data, "date_peak", lon_lat)
+  prep_end <- df_proc(event_data, "date_end", lon_lat)
+  prep_dur <- df_proc(event_data, "duration", lon_lat)
+  print(paste0("Began prepping intensities at ", Sys.time()))
+  prep_mean_int <- df_proc(event_data, "intensity_mean", lon_lat)
+  prep_max_int <- df_proc(event_data, "intensity_max", lon_lat)
+  prep_cum_int <- df_proc(event_data, "intensity_cumulative", lon_lat)
+  print(paste0("Began prepping other at ", Sys.time()))
+  prep_onset <- df_proc(event_data, "rate_onset", lon_lat)
+  prep_decline <- df_proc(event_data, "rate_decline", lon_lat)
+  prep_cat <- df_proc(event_data, "category", lon_lat)
   
   # Check array
-  dim(proc_clim)
-  dimnames(proc_clim)
-  plot(proc_clim[,,1])
-  proc_test <- data.frame(proc_clim[,1,1])
+  # dim(prep_dur)
+  # dimnames(prep_cat)
+  # plot(prep_cat[,,1])
+  # prep_test <- data.frame(prep_mean_int[,1,1])
   
   # Get file attributes
-  lon <- unique(med_coords$lon)
-  lat <- unique(med_coords$lat)[1]
-  time <- as.integer(unique(all_clim$t))
+  lon <- unique(lon_lat$lon)
+  lat <- unique(lon_lat$lat)
+  event_no <- unique(event_data$event_no)
   tunits <- "days since 1970-01-01"
-  doy <- unique(all_clim$doy)
-  eventno <- unique(all_event$event_no)
   
   # Length of each attribute
   nlon <- length(lon)
   nlat <- length(lat)
-  ndoy <- length(doy)
-  nt <- length(time)
-  nen <- length(eventno)
+  nen <- length(event_no)
   
   # path and file name, set dname
-  ncpath <- "~/Desktop/"
-  ncname <- "test"  
+  ncpath <- "~/pCloudDrive/MHWmed_data/"
+  ncname <- "MHW_event"
   ncfname <- paste0(ncpath, ncname, ".nc")
-  dname <- "tmp"
   
-  # create and write the netCDF file -- ncdf4 version
   # define dimensions
-  londim <- ncdim_def("lon","degrees_east",as.double(lon)) 
-  latdim <- ncdim_def("lat","degrees_north",as.double(lat)) 
-  timedim <- ncdim_def("time",tunits,as.double(time))
+  londim <- ncdim_def("lon", "degrees_east", lon)
+  latdim <- ncdim_def("lat", "degrees_north", lat)
+  endim <- ncdim_def("event_no", "event_number", event_no)
   
   # define variables
-  fillvalue <- 1e32
-  dlname <- "sea surface temperature"
-  tmp_def <- ncvar_def("tmp","deg_C", list(londim, latdim, timedim), fillvalue, dlname, prec = "single")
+  fillvalue <- 9999
+  def_start <- ncvar_def(name = "date_start", units = tunits, dim = list(endim, latdim, londim),
+                         missval = 0, longname = "start date of MHW", prec = "integer")
+  def_peak <- ncvar_def(name = "date_peak", units = tunits, dim = list(endim, latdim, londim),
+                        missval = 0, longname = "date of peak temperature anomaly during MHW", prec = "integer")
+  def_end <- ncvar_def(name = "date_end", units = tunits, dim = list(endim, latdim, londim),
+                        missval = 0, longname = "end date of MHW", prec = "integer")
+  def_dur <- ncvar_def(name = "duration", units = "days", dim = list(endim, latdim, londim), 
+                       missval = fillvalue, longname = "duration of MHW", prec = "integer")
+  def_mean_int <- ncvar_def(name = "mean_int", units = "deg_C", dim = list(endim, latdim, londim), 
+                            missval = fillvalue, longname = "mean intensity during MHW", prec = "double")
+  def_max_int <- ncvar_def(name = "max_int", units = "deg_C", dim = list(endim, latdim, londim), 
+                           missval = fillvalue, longname = "maximum intensity during MHW", prec = "double")
+  def_cum_int <- ncvar_def(name = "cum_int", units = "deg_C days", dim = list(endim, latdim, londim), 
+                           missval = fillvalue, longname = "cumulative intensity during MHW", prec = "double")
+  def_onset <- ncvar_def(name = "rate_onset", units = "deg_C", dim = list(endim, latdim, londim), 
+                           missval = fillvalue, longname = "daily increase in temperature from start to peak of MHW", prec = "double")
+  def_decline <- ncvar_def(name = "rate_decline", units = "deg_C", dim = list(endim, latdim, londim),
+                           missval = fillvalue, longname = "daily increase in temperature from start to peak of MHW", prec = "double")
+  def_cat <- ncvar_def(name = "category", units = "Category", dim = list(endim, latdim, londim),
+                       missval = 0, longname = "highest category reached during MHW", prec = "integer")
   
   # create netCDF file and put arrays
-  ncout <- nc_create(ncfname, list(tmp_def), force_v4 = TRUE)
+  ncout <- nc_create(ncfname, list(def_start, def_peak, def_end, def_dur, 
+                                   def_mean_int, def_max_int, def_cum_int,
+                                   def_onset, def_decline, def_cat), force_v4 = TRUE)
   
   # put variables
-  ncvar_put(ncout, tmp_def, proc_clim)
+  print(paste0("Began filling NetCDF file at ", Sys.time()))
+  ncvar_put(ncout, def_start, prep_start)
+  ncvar_put(ncout, def_peak, prep_peak)
+  ncvar_put(ncout, def_end, prep_end)
+  ncvar_put(ncout, def_dur, prep_dur)
+  ncvar_put(ncout, def_mean_int, prep_mean_int)
+  ncvar_put(ncout, def_max_int, prep_max_int)
+  ncvar_put(ncout, def_cum_int, prep_cum_int)
+  ncvar_put(ncout, def_onset, prep_onset)
+  ncvar_put(ncout, def_decline, prep_decline)
+  ncvar_put(ncout, def_cat, prep_cat)
   
   # put additional attributes into dimension and data variables
-  ncatt_put(ncout,"lon","axis","X") #,verbose=FALSE) #,definemode=FALSE)
-  ncatt_put(ncout,"lat","axis","Y")
-  ncatt_put(ncout,"time","axis","T")
+  ncatt_put(ncout, "lon", "axis", "X") #,verbose=FALSE) #,definemode=FALSE)
+  ncatt_put(ncout, "lat", "axis", "Y")
+  ncatt_put(ncout, "event_no", "axis", "event_no")
   
   # add global attributes
-  # ncatt_put(ncout,0,"title",title$value)
-  # ncatt_put(ncout,0,"institution",institution$value)
-  # ncatt_put(ncout,0,"source",datasource$value)
-  # ncatt_put(ncout,0,"references",references$value)
-  history <- paste("Party Panda", date(), sep=", ")
-  # ncatt_put(ncout,0,"history",history)
-  # ncatt_put(ncout,0,"Conventions",Conventions$value)
+  ncatt_put(ncout, 0, "title", paste0("MHW results from lon: ",
+                                      min(lon)," to ",max(lon),
+                                      " and lat: ",min(lat)," to ",max(lat)))
+  ncatt_put(ncout, 0, "institution", "Institut de la Mer de Villefranche")
+  ncatt_put(ncout, 0, "source", "NOAA Med SST ~4km")
+  ncatt_put(ncout,0, "references", "Banzon et al. (2020) J. Atmos. Oce. Tech. 37:341-349")
+  history <- paste0("Robert W Schlegel, ", date())
+  ncatt_put(ncout, 0, "history", history)
+  ncatt_put(ncout, 0, "Conventions", "Hobday et al. (2016; 2018)") # Assuming one has used the Hobday definition
   
   # Get a summary of the created file:
   ncout
@@ -194,51 +219,50 @@ Rds_to_NetCDF <- function(file_name){
 
 # Convert files -----------------------------------------------------------
 
+# Load the full brick of MHW event+cat results
+registerDoParallel(cores = 14)
+system.time(
+MHW_event <- plyr::ldply(MHW_files, Rds_to_event_cat, .parallel = T)
+) # 78 seconds
+
+# Create the NetCDF file
+system.time(
+event_to_NetCDF(MHW_event, lon_lat = med_coords)
+) # xxx seconds
 
 
 # Test the output ---------------------------------------------------------
 
-test_nc <- tidync("~/Desktop/test.nc") %>% 
-  hyper_tibble()
-
-
-# Full tutorial on dataframe to array -------------------------------------
-
-# Set variable lengths etc.
-lon <- as.array(unique(med_lon$lon))
-lat <- as.array(unique(med_lat$lat))[1]
-time <- as.array(as.integer(unique(all_clim$t)))
-tunits <- "days since 1970-01-01"
-nlon <- length(lon)
-nlat <- length(lat)
-nt <- length(time)
-
-# Convert columns to arrays
-temp_mat <- as.matrix(all_clim$temp)
-temp_array <- array(temp_mat, dim = c(nlon, nlat, nt))
-dim(temp_array)
-
-# Check output
-cutpts <- seq(10, 30, by = 2)
-levelplot(temp_array[,,200] ~ lon * lat, data = med_coords[med_coords$lat == lat,], at = cutpts, cuts = 11, pretty = T, 
-          col.regions = (rev(brewer.pal(10,"RdBu"))), main = "Mean July Temperature (C)")
-
-# Convert natural dataframes missing pixels due to land etc.
-j2 <- sapply(all_clim$lon, function(x) which.min(abs(lon-x)))
-k2 <- sapply(all_clim$lat, function(x) which.min(abs(lat-x)))
-
-# partial loop avoidance for tmp_array
-fillvalue <- 1e32
-temp_array <- array(fillvalue, dim = c(nlon, nlat))
-tmp_array <- array(fillvalue, dim = c(nlon, nlat, nt))
-nobs <- dim(all_clim)[1]
-for (l in 1:nt) {
-  temp_array[cbind(j2,k2)] <- as.matrix(all_clim[1:nobs,l+2]) 
-  tmp_array[,,l] <- temp_array
+# Convenience function for comparing files
+quick_grid <- function(df, var_choice){
+  df %>% 
+    filter(event_no == 13) %>% 
+    ggplot(aes(x = lon, y = lat)) +
+    geom_raster(aes_string(fill = var_choice)) +
+    coord_cartesian(expand = F) +
+    scale_fill_viridis_c() +
+    theme(legend.position = "bottom")
 }
 
-# loop avoidance for all of the variables
-nobs <- dim(all_clim)[1]
-l <- rep(1:nt, each = nobs)
-tmp_array[cbind(j2,k2,l)] <- as.matrix(all_clim[1:nobs,3])
+# Thanks to the tidync package, loading the gridded data is very simple
+MHW_res_nc <- tidync("~/pCloudDrive/MHWmed_data/MHW_event.nc") %>% 
+  hyper_tibble() #%>% 
+  # mutate(date_peak = as.Date(date_peak, origin = "1970-01-01"))
 
+# Plot the duration results
+quick_grid(MHW_event, "duration")
+quick_grid(MHW_res_nc, "duration")
+
+# Cumulative intensity
+quick_grid(MHW_event, "intensity_cumulative")
+quick_grid(MHW_res_nc, "cum_int")
+
+# Rate of onset
+quick_grid(MHW_event, "rate_onset")
+quick_grid(MHW_res_nc, "rate_onset")
+
+# Category
+MHW_event %>% 
+  mutate(category = as.integer(category)) %>% 
+  quick_grid("category")
+quick_grid(MHW_res_nc, "category")
