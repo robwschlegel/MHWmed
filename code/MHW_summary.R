@@ -8,6 +8,28 @@
 # Organise these with one row showing all months in one year
 # And each row is a new year
 
+# Notes 2021/02/11
+# The mass mortality events (MMEs) are recorded within a season
+# So the exact days/weeks/months are not available
+# But this is not a huge issue as there will always be a time lag of some
+# sort between when the MHWs occur and the MMEs
+# So don't plan to link the months up exactly
+# Create time series plots of MHW metrics per ecoregion and overlay MMEs as fat rug points
+# Remember that the purpose of this is to relate the evolution of the MMEs in time
+# due to the increases in MHWs
+# Create stacked barplots that show how much of a MHW metric (e.g. duration)
+# over the course of a year was due to events in the warm months vs not
+# Could be interesting to see that once a link can be shown between some MMHW and MME,
+# to look at the times when these same MHWs occur without an MME having been observed
+# This may show when an MME occurred but wasn't observed
+# But remember that we are likely not going to solve the mismatch between MHW and MME
+# Stick to the main message, which is that MMEs are increasing, 
+# and so are MHWs, and the two must be linked
+# A multivariate analysis of MHW metrics and MMEs may be a way forward
+# The current thinking is to treat 2015-19 as one unit of time
+# and not to try to disentangle the individual years
+# That can be done in a follow up paper
+
 
 # Setup -------------------------------------------------------------------
 
@@ -789,4 +811,12 @@ map_pixel_duration <- monthly_map_pixel("duration")
 ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 8, width = 20)
 map_pixel_category <- monthly_map_pixel("category")
 ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 8, width = 20)
+
+
+# MHW metric time series and MME rug plot ---------------------------------
+
+
+
+# Stacked barplots of MHW metrics per year --------------------------------
+
 
