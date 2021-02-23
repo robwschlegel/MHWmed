@@ -69,6 +69,13 @@ fillColCat <- c(
   "Severe" = "#9e0000",
   "Extreme" = "#2d0000"
 )
+fillColCatNum <- c(
+  "I Moderate" = "#ffc866",
+  "II Strong" = "#ff6900",
+  "III Severe" = "#9e0000",
+  "IV Extreme" = "#2d0000"
+)
+
 
 # NetCDF info -------------------------------------------------------------
 
@@ -87,8 +94,10 @@ MME <- read_csv("data/Cnidaria_CatalanCoast.csv") %>%
   dplyr::select(Year:`Damaged qualitative`) %>% 
   distinct() %>% 
   dplyr::rename(lon = Longitude, lat = Latitude) %>% 
-  mutate(date_start = case_when(EvenStart == "Autumn" ~ paste0(Year,"-09-01"),
-                                EvenStart == "Summer" ~ paste0(Year,"-06-01"))) %>% 
+  mutate(date_start = case_when(EvenStart == "Autumn" ~ as.Date(paste0(Year,"-09-01")),
+                                EvenStart == "Summer" ~ as.Date(paste0(Year,"-06-01"))),
+         date_end = case_when(EvenStart == "Autumn" ~ as.Date(paste0(Year,"-11-30")),
+                              EvenStart == "Summer" ~ as.Date(paste0(Year,"-08-31")))) %>% 
   mutate(Location = case_when(Location == "Falconera" ~ "Punta Falconera", 
                               Location == "caials" ~ "Caials", 
                               TRUE ~ Location))
@@ -147,9 +156,25 @@ MHW_res_event <- MHW_res %>%
   ungroup()
 
 # Merge MME and MHW results
+MME_vs_MHW_plot <- ggplot(data = filter(MHW_res_event,
+                                        # Location == "Caials",
+                                        date_start >= "2015-01-01"),
+                          aes(x = date_peak, y = intensity_cumulative)) +
+  geom_point(aes(fill = category), shape = 21, size = 2) +
+  geom_segment(data = MME, size = 2,
+               aes(x = date_start, xend = date_end,
+                   y = 0, yend = 0, colour = `Damaged percentage`)) +
+  geom_hline(aes(yintercept = 100), linetype = "dashed", colour = "grey20") +
+  scale_fill_manual("Category", values = fillColCatNum) +
+  scale_colour_gradient(low = "blue", high = "red") +
+  labs(y = "Cumulative intensity (°C)", x = NULL,
+       title = "Co-occurrence of MME and MHWs") +
+  facet_wrap(~Location) +
+  theme(legend.position = "bottom")
+ggsave("talks/graph/MME_vs_MHW_plot.png", height = 10, width = 12)
 
 
-# Figure showing MHWs per Location
+# Line plot showing MHWs per Location
 ggplot(data = filter(MHW_res_clim, 
                      # Location == "Caials",
                      t >= "2015-06-01"), 

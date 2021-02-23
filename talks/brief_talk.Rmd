@@ -98,6 +98,8 @@ See Table 2 in @Hobday2016 for a full list of metrics.
 # Catalan Coast
 ***
 
+![](graph/MME_vs_MHW_plot.png){ width=100% }
+
 <!-- - Coastal data ts box of French Spanish coast (coords from newest spreadsheet) -->
 
 
