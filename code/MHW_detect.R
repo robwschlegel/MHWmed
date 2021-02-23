@@ -13,7 +13,7 @@ library(doParallel); registerDoParallel(cores = 7)
 # The data locations
 # NB: These files are not hosted on GitHub as they are too large
 # Contact Robert Schlegel to receive them: robert.schlegel@imev-mer.fr
-med_SST_files <- dir("data/SST", pattern = ".nc", full.names = T, recursive = T)
+med_SST_files <- dir("~/pCloudDrive/MHWmed_data/SST", pattern = ".nc", full.names = T, recursive = T)
 
 # The lon/lat indexes
 med_lat <- tidync(med_SST_files[1]) %>% 

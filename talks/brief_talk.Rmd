@@ -17,6 +17,7 @@ knitr::opts_chunk$set(fig.width = 6, fig.align = 'center',
 ```
 
 <br>
+
 # SST product
 ***
 A sea-surface temperature (SST) product was used for the spatial analysis of marine heatwaves (MHWs) at the surface of the Mediterranean.
@@ -30,6 +31,7 @@ A sea-surface temperature (SST) product was used for the spatial analysis of mar
   - Excludes the Black Sea
 
 <br>
+
 # MHW  {.tabset .tabset-fade .tabset-pills}
 ***
 > "A prolonged discrete anomalously warm water event that can be described by its duration, intensity, rate of evolution, and spatial extent." [@Hobday2016]  
@@ -57,7 +59,8 @@ See Table 2 in @Hobday2016 for a full list of metrics.
 ![](graph/WA_flame_3.png){ width=100% }
 
 <br>
-# Full Med {.tabset .tabset-fade .tabset-pills}
+
+# Full Med {.tabset .tabset-fade .tabset-pills}  
 ***
 ## Categories {-}
 
@@ -71,8 +74,8 @@ See Table 2 in @Hobday2016 for a full list of metrics.
 
 ![](../figures/MHW_pixel_duration.png){ width=100% }
 
-
 <br>
+
 # NW Med {.tabset .tabset-fade .tabset-pills}
 ***
 
@@ -90,11 +93,16 @@ See Table 2 in @Hobday2016 for a full list of metrics.
 
 <!-- - Time series of the 5 year period + MHWs -->
 
+<br>
 
-- Coastal data ts box of French Spanish coast (coords from newest spreadsheet)
+# Catalan Coast
+***
+
+<!-- - Coastal data ts box of French Spanish coast (coords from newest spreadsheet) -->
 
 
 <br>
+
 # Next steps
 ***
 - MHW statistics at large spatial scales
@@ -103,5 +111,6 @@ See Table 2 in @Hobday2016 for a full list of metrics.
   - Do they occur in the same/neighbouring seasons?
 
 <br>
+
 # References
 ***
