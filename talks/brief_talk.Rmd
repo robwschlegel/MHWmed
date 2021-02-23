@@ -1,0 +1,107 @@
+---
+title: "SST MHWs in the Med"
+author: "Robert Schlegel"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    code_folding: hide
+    fig_crop: no
+description: This brief talk discusses the specifics of the SST product used, the mechanics of MHW detection and the metrics it creates.
+bibliography: Presentations.bib
+---
+
+```{r global_options, include = FALSE}
+knitr::opts_chunk$set(fig.width = 6, fig.align = 'center',
+                      warning = FALSE, message = FALSE, 
+                      tidy = FALSE)
+```
+
+<br>
+# SST product
+***
+A sea-surface temperature (SST) product was used for the spatial analysis of marine heatwaves (MHWs) at the surface of the Mediterranean.
+
+- Name: Mediterranean SST Analysis L4
+- Date range: 1982-01-01 to 2019-12-31
+- Spatial resolution: ~ 4 km
+- Temporal resolution: daily
+- Spatial coverage: 18.1°W - 36.2°E; 30.3°N - 46.0°N
+  - Includes a bit of the Atlantic
+  - Excludes the Black Sea
+
+<br>
+# MHW  {.tabset .tabset-fade .tabset-pills}
+***
+> "A prolonged discrete anomalously warm water event that can be described by its duration, intensity, rate of evolution, and spatial extent." [@Hobday2016]  
+  
+- Temperature at a location exceeds the 90th percentile for a given calendar day, for 5+ days, with no more than a 2 day gap 
+  
+## Metrics
+
+See Table 2 in @Hobday2016 for a full list of metrics.
+
+- Count (n): The number of discrete events in a period of time
+- Duration (days): The number of days a single event lasts for
+- Mean intensity (°C): The average temperature anomaly during an event
+- Maximum intensity (°C): The highest temperature anomaly during the event
+- Cumulative intensity (°C days): The sum of the temperature anomalies
+- Rate onset (°C/day): Daily increase in temperature from start to peak of event
+- Rate decline (°C/day): Daily decrease from peak to end of event
+
+## Anatomy
+
+![](graph/WA_flame_2.png){ width=100% }
+
+## Categories
+
+![](graph/WA_flame_3.png){ width=100% }
+
+<br>
+# Full Med {.tabset .tabset-fade .tabset-pills}
+***
+## Categories {-}
+
+<!-- # ```{r, out.width='\\textwidth'} -->
+<!-- # knitr::include_graphics("../figures/MHW_pixel_category.png") -->
+<!-- # ``` -->
+
+![](../figures/MHW_pixel_category.png){ width=100% }
+
+## Duration {-}
+
+![](../figures/MHW_pixel_duration.png){ width=100% }
+
+
+<br>
+# NW Med {.tabset .tabset-fade .tabset-pills}
+***
+
+## Surface area {-}
+
+![](graph/NWMed_bar_surface.png){ width=100% }
+
+## Duration {-}
+
+![](graph/NWMed_bar_duration.png){ width=100% }
+
+## Cum. intensity {-}
+
+![](graph/NWMed_bar_cum_int.png){ width=100% }
+
+<!-- - Time series of the 5 year period + MHWs -->
+
+
+- Coastal data ts box of French Spanish coast (coords from newest spreadsheet)
+
+
+<br>
+# Next steps
+***
+- MHW statistics at large spatial scales
+- Basic comparison of MMEs and MHWs
+  - Do they occur in the same/neighbouring ecoregions?
+  - Do they occur in the same/neighbouring seasons?
+
+<br>
+# References
+***

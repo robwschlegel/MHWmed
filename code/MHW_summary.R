@@ -30,6 +30,8 @@
 # and not to try to disentangle the individual years
 # That can be done in a follow up paper
 
+# Show the MME rug plot bits by colour for different taxa
+
 
 # Setup -------------------------------------------------------------------
 
