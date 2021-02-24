@@ -1,10 +1,10 @@
 ---
-title: "SST MHWs in the Med"
+title: "Surface MHWs in the Mediterannean"
 author: "Robert Schlegel"
 date: "`r Sys.Date()`"
 output:
   html_document:
-    code_folding: hide
+    # code_folding: hide
     fig_crop: no
 description: This brief talk discusses the specifics of the SST product used, the mechanics of MHW detection and the metrics it creates.
 bibliography: Presentations.bib
@@ -34,11 +34,12 @@ A sea-surface temperature (SST) product was used for the spatial analysis of mar
 
 # MHW  {.tabset .tabset-fade .tabset-pills}
 ***
+- Temperature at a location exceeds the 90th percentile for a given calendar day, for 5+ days, with no more than a 2 day gap 
+
 > "A prolonged discrete anomalously warm water event that can be described by its duration, intensity, rate of evolution, and spatial extent." [@Hobday2016]  
   
-- Temperature at a location exceeds the 90th percentile for a given calendar day, for 5+ days, with no more than a 2 day gap 
   
-## Metrics
+## Metrics {-}
 
 See Table 2 in @Hobday2016 for a full list of metrics.
 
@@ -50,11 +51,15 @@ See Table 2 in @Hobday2016 for a full list of metrics.
 - Rate onset (°C/day): Daily increase in temperature from start to peak of event
 - Rate decline (°C/day): Daily decrease from peak to end of event
 
-## Anatomy
+<br>
+
+## Anatomy {-}
 
 ![](graph/WA_flame_2.png){ width=100% }
 
-## Categories
+<br>
+
+## Categories {-}
 
 ![](graph/WA_flame_3.png){ width=100% }
 
@@ -62,13 +67,17 @@ See Table 2 in @Hobday2016 for a full list of metrics.
 
 # Full Med {.tabset .tabset-fade .tabset-pills}  
 ***
+## Summaries {-}
+
+![](../figures/MHW_cat_historic.png){ width=100% }
+
+<br>
+
 ## Categories {-}
 
-<!-- # ```{r, out.width='\\textwidth'} -->
-<!-- # knitr::include_graphics("../figures/MHW_pixel_category.png") -->
-<!-- # ``` -->
-
 ![](../figures/MHW_pixel_category.png){ width=100% }
+
+<br>
 
 ## Duration {-}
 
@@ -95,19 +104,25 @@ See Table 2 in @Hobday2016 for a full list of metrics.
 
 <br>
 
-# Catalan Coast
+# Catalan Coast {.tabset .tabset-fade .tabset-pills}  
 ***
 
+## Total area {-}
+
+![](graph/MME_vs_MHW_mean_plot.png){ width=100% }
+
+<br>
+
+## Per site {-}
+
 ![](graph/MME_vs_MHW_plot.png){ width=100% }
-
-<!-- - Coastal data ts box of French Spanish coast (coords from newest spreadsheet) -->
-
 
 <br>
 
 # Next steps
 ***
-- MHW statistics at large spatial scales
+- MHW statistics for targeted areas of ecological interest
+  - Will need to work together to determine these areas
 - Basic comparison of MMEs and MHWs
   - Do they occur in the same/neighbouring ecoregions?
   - Do they occur in the same/neighbouring seasons?
