@@ -1,6 +1,6 @@
 ---
-title: "Surface MHWs in the Mediterannean"
-author: "Robert Schlegel"
+title: "Surface MHWs in the Mediterranean"
+# author: "Robert Schlegel"
 date: "`r Sys.Date()`"
 output:
   html_document:
