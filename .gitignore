@@ -10,4 +10,4 @@ data/MHW_cat_pixel_monthly.RData
 data/MHW_cat_pixel_annual.RData
 data/MHW_cat_daily_annual.RData
 data/MHW_cat_summary_annual.RData
-talks/brief_talk.html
+talks/*.html
