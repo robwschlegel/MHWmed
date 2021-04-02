@@ -638,7 +638,8 @@ monthly_map_fig_full <- function(year_choice){
 }
 
 # Figure that plots the per pixel maps
-monthly_map_pixel <- function(var_choice, 
+monthly_map_pixel <- function(var_choice,
+                              month_sum = F,
                               year_range = seq(2015, 2019), 
                               month_range = lubridate::month(seq(6, 11), label = F, abb = T)){
   
@@ -646,6 +647,22 @@ monthly_map_pixel <- function(var_choice,
   MHW_cat_pixel_filter <- MHW_cat_pixel_monthly %>% 
     filter(year %in% year_range,
            month %in% month_range)
+  
+  # Combine months as desired
+  if(month_sum){
+    MHW_cat_pixel_filter <- MHW_cat_pixel_filter %>% 
+      group_by(lon, lat, year) %>% 
+      summarise(duration = sum(duration, na.rm = T),
+                category = max(as.integer(category), na.rm = T),
+                max_int = max(max_int, na.rm = T),
+                cum_int = sum(cum_int, na.rm = T),
+                `I Moderate` = sum(`I Moderate`, na.rm = T),
+                `II Strong` = sum(`II Strong`, na.rm = T),
+                `III Severe` = sum(`III Severe`, na.rm = T),
+                `IV Extreme` = sum(`IV Extreme`, na.rm = T), .groups = "drop") %>% 
+      mutate(category = factor(category, levels = c(1, 2, 3, 4),
+                               labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
+  }
   
   # Ecoregions for faceting
   monthly_MEOW <- MHW_cat_region %>% 
@@ -663,9 +680,14 @@ monthly_map_pixel <- function(var_choice,
           legend.position = "bottom",
           legend.text = element_text(size = 14),
           legend.title = element_text(size = 16),
-          panel.background = element_rect(fill = "grey90")) + 
-    facet_grid(year ~ month)
+          panel.background = element_rect(fill = "grey90"))
+  if(month_sum){
+    multi_panel <- multi_panel + facet_wrap(~year, ncol = 1)
+  } else{
+    multi_panel <- multi_panel + facet_grid(year ~ month)
+  } 
   if(var_choice == "duration") multi_panel <- multi_panel + scale_fill_viridis_c("Duration")
+  if(var_choice == "cum_int") multi_panel <- multi_panel + scale_fill_viridis_c("Cumulative\nIntensity", option = "B")
   if(var_choice == "category") multi_panel <- multi_panel + scale_fill_manual("Category", values = MHW_colours)
   return(multi_panel)
 }
@@ -820,5 +842,26 @@ ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 8, width =
 
 
 # Stacked barplots of MHW metrics per year --------------------------------
+
+
+
+# Per pixel icum maps -----------------------------------------------------
+
+# Cumulative intensity is the focal variable
+# The ecoregions per pixel maps but for cumulative intensity over the full six months
+# Put a label over each region showing the count of MMEs
+# Or perhaps better as a plot on the side
+
+map_pixel_cum_int <- monthly_map_pixel("cum_int", month_sum = T)
+ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 10, width = 4)
+
+
+# Histograms of MME and MHW -----------------------------------------------
+
+# Very broad patterns are what we are looking for
+# Show histograms of MHWs per ecoregions next to histograms of MME per region
+# All of this only per 3 month season step
+# Then do the same figures for areas with lot's of MME records
+
 
 
