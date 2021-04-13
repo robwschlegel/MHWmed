@@ -864,4 +864,24 @@ ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 10, width = 
 # Then do the same figures for areas with lot's of MME records
 
 
+# Also maps showing broad stats for MEE and MHW per ecoregion
 
+# A figure somehow showing areas that were monitored but did not have mortality would be interesting
+# A boxplot of some sort
+
+# Need different figures for different genus etc.
+
+# When did the highest MME occur in a year, and what did the MHW look like then
+
+# Keep it simple. Figures that are a summary of all five years.
+# The goal is to be able to show all of the info in one or two figures.
+
+# Could use alpha to show count/days of MHWs over five years and colour for mean icum
+# Like a density plot, sort of...
+# Could use alpha with histograms to show overlay of different years for MME and MHW stats
+
+# Consider showing figures that have values in excess of the median for the whole time period
+# In this way we can still include the stats from the whole time series without needing extra figures
+
+# Time series barplots per site will be good to show as back up
+# But instead of showing MHW time series, show the occurrence/days/icum as bars per season with MME
