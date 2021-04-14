@@ -660,7 +660,8 @@ monthly_map_pixel <- function(var_choice,
   
   # Reduce the dataframe to the desired  dimensions
   if(annual){
-    MHW_cat_pixel_filter <- MHW_cat_pixel_annual_JJASON
+    MHW_cat_pixel_filter <- MHW_cat_pixel_annual_JJASON %>% 
+      filter(year %in% year_range)
   } else{
     MHW_cat_pixel_filter <- MHW_cat_pixel_monthly %>% 
       filter(year %in% year_range,
@@ -805,13 +806,12 @@ MEOW_label_coords <- MEOW %>%
 #                 duration_sum = duration.y)
 # rm(MHW_cat_pixel_annual_sum); gc()
 # save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
-load("data/MHW_cat_pixel_annual.RData")
+# load("data/MHW_cat_pixel_annual.RData")
 
 # The occurrences per year per pixel JJASON
-# MHW_cat_pixel_annual_JJASON <- MHW_cat_pixel_monthly %>% 
-#   filter(year %in% seq(2015, 2019),
-#          month %in% lubridate::month(seq(6, 11), label = F, abb = T)) %>% 
-#     group_by(lon, lat, year) %>% 
+# MHW_cat_pixel_annual_JJASON <- MHW_cat_pixel_monthly %>%
+#   filter(month %in% lubridate::month(seq(6, 11), label = F, abb = T)) %>%
+#     group_by(lon, lat, year) %>%
 #     summarise(duration = sum(duration, na.rm = T),
 #               category = max(as.integer(category), na.rm = T),
 #               max_int = max(max_int, na.rm = T),
@@ -819,7 +819,7 @@ load("data/MHW_cat_pixel_annual.RData")
 #               `I Moderate` = sum(`I Moderate`, na.rm = T),
 #               `II Strong` = sum(`II Strong`, na.rm = T),
 #               `III Severe` = sum(`III Severe`, na.rm = T),
-#               `IV Extreme` = sum(`IV Extreme`, na.rm = T), .groups = "drop") %>% 
+#               `IV Extreme` = sum(`IV Extreme`, na.rm = T), .groups = "drop") %>%
 #     mutate(category = factor(category, levels = c(1, 2, 3, 4),
 #                              labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
 # gc()
@@ -831,7 +831,7 @@ load("data/MHW_cat_pixel_annual_JJASON.RData")
 # MHW_cat_daily_annual <- plyr::ldply(res_files, cat_daily_calc, .parallel = T)
 # ) # 258 seconds on 7 cores
 # save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
-load("data/MHW_cat_daily_annual.RData")
+# load("data/MHW_cat_daily_annual.RData")
 
 
 # Ecoregion summaries -----------------------------------------------------
@@ -918,28 +918,40 @@ ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 2
 
 # Single summary map ------------------------------------------------------
 
-# All five years combined duration and cumulative intensity versions
-# Have this to be anomalies against the historic average
-# Have a version with MME dots and one without
-# Have a blank map with just MME dots to put next to the coloured maps
+# Requires: MHW_cat_pixel_monthly, MHW_cat_pixel_annual_JJASON
 
 # Prepare MME points
-mme_points <- mme %>% 
+mme_damage <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
+  dplyr::select(Year:`Damaged qualitative`) %>% # Filter out 'No' values
+  filter(`Damaged qualitative` != "No",
+         # `Upper Depth` <= 10,
+         Species != "Pinna nobilis") %>%
+  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
+  filter(year %in% seq(2015, 2019),
+         EvenStart %in% c("Summer", "Autumn")) %>% 
+  group_by(lon, lat) %>% 
+  summarise(count = n(), .groups = "drop")
+mme_no <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
+  dplyr::select(Year:`Damaged qualitative`) %>% # Filter out 'No' values
+  filter(`Damaged qualitative` == "No",
+         # `Upper Depth` <= 10,
+         Species != "Pinna nobilis") %>%
+  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
   filter(year %in% seq(2015, 2019),
          EvenStart %in% c("Summer", "Autumn")) %>% 
   group_by(lon, lat) %>% 
   summarise(count = n(), .groups = "drop")
 
 # Determine historic medians per pixel
-MHW_cat_pixel_JJASON_clim_median <- MHW_cat_pixel_annual %>% 
-  filter(year %in% seq(1982, 2011),
-         month %in% seq(6, 11)) %>%
+MHW_cat_pixel_JJASON_clim_median <- MHW_cat_pixel_annual_JJASON %>% 
+  filter(year %in% seq(1982, 2011)) %>%
   group_by(lon, lat) %>% 
-  summarise(duration_median = median(duration_sum, na.rm = T),
+  summarise(duration_median = median(duration, na.rm = T),
             icum_median = median(cum_int, na.rm = T), .groups = "drop")
 
 # Create study period anomalies
 MHW_cat_pixel_JJASON_anom <- MHW_cat_pixel_annual_JJASON %>% 
+  filter(year %in% seq(2015, 2019)) %>%
   group_by(lon, lat) %>% 
   summarise(duration = mean(duration, na.rm = T),
             icum = mean(cum_int, na.rm = T), .groups = "drop") %>% 
@@ -987,15 +999,15 @@ anom_plot_icum <- med_base +
         strip.text = element_text(size = 16))
 # anom_plot_icum
 
-# Global map of MHW occurrence
+# MME damage
 anom_plot_mme <- med_base + 
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
-  geom_point(data = mme_points, aes(x = lon, y = lat, size = count), 
+  geom_point(data = mme_damage, aes(x = lon, y = lat, size = count), 
              alpha = 0.7, shape = 21, fill = "yellow", colour = "red") +
   coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
   labs(size = "MME count (n)",
-       title = "MME occurrence",
-       subtitle = "Recorded events for 2015-2019 Summer/Autumn 0-10 m (no Pinna nobilis)") +
+       title = "MME damage",
+       subtitle = "Recorded damaging events for 2015-2019 Summer/Autumn") +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         legend.position = "bottom",
         title = element_text(size = 18),
@@ -1005,10 +1017,28 @@ anom_plot_mme <- med_base +
         strip.text = element_text(size = 16))
 # anom_plot_mme
 
+# MME damage
+anom_plot_mme_no <- med_base + 
+  geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
+  geom_point(data = mme_no, aes(x = lon, y = lat, size = count), 
+             alpha = 0.7, shape = 21, fill = "yellow", colour = "red") +
+  coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+  labs(size = "MME count (n)",
+       title = "MME no damage",
+       subtitle = "Recorded non-damaging events for 2015-2019 Summer/Autumn") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = "bottom",
+        title = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18),
+        panel.background = element_rect(fill = "grey90"), 
+        strip.text = element_text(size = 16))
+# anom_plot_mme_no
+
 # Combine and save
-anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum, anom_plot_mme, 
-                              ncol = 3, nrow = 1, align = "hv")
-ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 8, width = 34)
+anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum, anom_plot_mme, anom_plot_mme_no,
+                              ncol = 2, nrow = 2, align = "hv")
+ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 
 
 # MHW metric time series and MME rug plot ---------------------------------
