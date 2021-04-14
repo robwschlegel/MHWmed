@@ -10,5 +10,6 @@ data/MHW_cat_pixel_monthly.RData
 data/MHW_cat_pixel_annual.RData
 data/MHW_cat_daily_annual.RData
 data/MHW_cat_summary_annual.RData
+data/UPDATED_MassMortalityEvents15-19_30032021.csv
 data/extract/levant_pixels.csv
 talks/*.html

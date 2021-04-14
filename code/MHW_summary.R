@@ -1,13 +1,6 @@
 # code/MHW_summary.R
 # This script creates annual and total summaries from the MHW Med results
 
-# TODO: Create map summaries that show the per pixel values for the focal metrics
-# Add labels to these figures that show the summary stats for the ecoregions
-# These per pixel maps could also show the max category experienced
-# Focus on duration and category for these figures
-# Organise these with one row showing all months in one year
-# And each row is a new year
-
 # Notes 2021/02/11
 # The mass mortality events (MMEs) are recorded within a season
 # So the exact days/weeks/months are not available
@@ -50,6 +43,18 @@ res_files <- dir("data/MHW", full.names = T)
 # The coords with SST
 load("metadata/med_sea_coords.RData")
 
+# MME data
+mme <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
+  dplyr::select(Year:`Damaged qualitative`) %>% # Filter out 'No' values
+  filter(`Damaged qualitative` != "No",
+         `Upper Depth` <= 10,
+         Species != "Pinna nobilis") %>% 
+  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
+  mutate(Ecoregion = case_when(Ecoregion == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
+                               Ecoregion == "Western Mediterranean" & lat < 39 ~ "Southwestern Mediterranean",
+                               TRUE ~ Ecoregion))
+unique(mme$Ecoregion)
+
 # Complete annual dates by categories
 full_annual_grid <- expand_grid(year = seq(1982, 2019), 
                                 category = as.factor(c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
@@ -80,14 +85,14 @@ map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE
 
 # The base Med map
 med_base <- ggplot() +
-  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), fill = "grey40") +
   theme_void() +
-  guides(fill = guide_legend(override.aes = list(size = 10))) +
-  theme(panel.border = element_rect(colour = "black", fill = NA),
-        legend.position = "bottom",
-        legend.text = element_text(size = 14),
-        legend.title = element_text(size = 16),
-        panel.background = element_rect(fill = "grey90"))
+  guides(fill = guide_legend(override.aes = list(size = 10))) #+
+  # theme(panel.border = element_rect(colour = "black", fill = NA),
+  #       legend.position = "bottom",
+  #       legend.text = element_text(size = 14),
+  #       legend.title = element_text(size = 16),
+  #       panel.background = element_rect(fill = "grey90"))
 
 
 # Functions ---------------------------------------------------------------
@@ -107,6 +112,16 @@ points_in_region <- function(region_in){
     mutate(region = region_in) %>% 
     dplyr::select(lon, lat, region)
   return(coords_in)
+}
+
+# Function for extracting lon/lat values from sf objects
+extract_coords <- function(df){
+  res_sub <- as.data.frame(df$geometry[[1]][[1]]) %>% 
+    `colnames<-`(c("lon", "lat"))
+  lat_val <- ifelse(min(res_sub$lat) < 32, min(res_sub$lat), max(res_sub$lat))  
+  lon_val <- res_sub$lon[res_sub$lat == lat_val]
+  res <- data.frame(lon = lon_val, lat = lat_val)
+  return(res)
 }
 
 # Function for loading only the daily cat results
@@ -639,7 +654,7 @@ monthly_map_fig_full <- function(year_choice){
 
 # Figure that plots the per pixel maps
 monthly_map_pixel <- function(var_choice,
-                              month_sum = F,
+                              annual = T,
                               year_range = seq(2015, 2019), 
                               month_range = lubridate::month(seq(6, 11), label = F, abb = T)){
   
@@ -647,9 +662,10 @@ monthly_map_pixel <- function(var_choice,
   MHW_cat_pixel_filter <- MHW_cat_pixel_monthly %>% 
     filter(year %in% year_range,
            month %in% month_range)
+  gc()
   
   # Combine months as desired
-  if(month_sum){
+  if(annual){
     MHW_cat_pixel_filter <- MHW_cat_pixel_filter %>% 
       group_by(lon, lat, year) %>% 
       summarise(duration = sum(duration, na.rm = T),
@@ -662,6 +678,7 @@ monthly_map_pixel <- function(var_choice,
                 `IV Extreme` = sum(`IV Extreme`, na.rm = T), .groups = "drop") %>% 
       mutate(category = factor(category, levels = c(1, 2, 3, 4),
                                labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
+    gc()
   }
   
   # Ecoregions for faceting
@@ -670,28 +687,65 @@ monthly_map_pixel <- function(var_choice,
     filter(year %in% year_range, month %in% month_range) %>% 
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
+  # Prepare MME points
+  mme_points <- mme %>% 
+    filter(year %in% year_range,
+           EvenStart %in% c("Summer", "Autumn"))
+  
+  # Complete region/year grid
+  full_region_year_grid <- expand_grid(year = year_range, 
+                                       Ecoregion = unique(mme$Ecoregion))
+  # Prepare MME labels
+  mme_labels <- mme_points %>% 
+    group_by(year, Ecoregion) %>% 
+    summarise(count = n(), .groups = "drop") %>% 
+    right_join(full_region_year_grid, by = c("year", "Ecoregion")) %>% 
+    left_join(MEOW_label_coords, by = c("Ecoregion" = "ECOREGION")) %>% 
+    mutate(count = ifelse(is.na(count), 0, count)) %>% 
+    arrange(year, Ecoregion)
+  
+  # Determine colour for MME dots
+  if(var_choice != "category"){
+    point_colour <- "red"
+  } else{
+    point_colour <- "black"
+  }
+  
   # Global map of MHW occurrence
   multi_panel <- med_base + 
     geom_tile(data = MHW_cat_pixel_filter, colour = NA,
               aes_string(fill = var_choice, x = "lon", y = "lat")) +
-    geom_sf(data = monthly_MEOW, alpha = 0.9, aes(geometry = geometry), fill = NA) +
+    geom_sf(data = monthly_MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
+    geom_point(data = mme_points, aes(x = lon, y = lat), shape = 1, colour = point_colour) +
+    geom_label(data = mme_labels, aes(x = lon, y = lat, label = count)) +
     coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
-          legend.position = "bottom",
-          legend.text = element_text(size = 14),
-          legend.title = element_text(size = 16),
-          panel.background = element_rect(fill = "grey90"))
-  if(month_sum){
-    multi_panel <- multi_panel + facet_wrap(~year, ncol = 1)
+          # legend.position = "bottom",
+          legend.text = element_text(size = 16),
+          legend.title = element_text(size = 18),
+          panel.background = element_rect(fill = "grey90"), 
+          strip.text = element_text(size = 16))
+  if(annual){
+    multi_panel <- multi_panel + 
+      facet_wrap(~year, ncol = 3) +
+      theme(legend.direction = "horizontal", 
+            legend.position = c(0.82, 0.3))
   } else{
-    multi_panel <- multi_panel + facet_grid(year ~ month)
+    multi_panel <- multi_panel + 
+      facet_grid(year ~ month) +
+      theme(legend.position = "bottom")
   } 
-  if(var_choice == "duration") multi_panel <- multi_panel + scale_fill_viridis_c("Duration")
-  if(var_choice == "cum_int") multi_panel <- multi_panel + scale_fill_viridis_c("Cumulative\nIntensity", option = "B")
-  if(var_choice == "category") multi_panel <- multi_panel + scale_fill_manual("Category", values = MHW_colours)
+  if(var_choice == "duration") multi_panel <- multi_panel + 
+    scale_fill_viridis_c("Duration")
+  if(var_choice == "cum_int") multi_panel <- multi_panel + 
+    scale_fill_viridis_c("Cumulative\nIntensity", option = "B")
+  if(var_choice == "category") multi_panel <- multi_panel + 
+    scale_fill_manual("Category", values = MHW_colours) + 
+    guides(fill = guide_legend(nrow = 2, byrow = TRUE))
+  rm(MHW_cat_pixel_filter); gc()
   return(multi_panel)
 }
-
+#
 
 # Ecoregions --------------------------------------------------------------
 
@@ -722,10 +776,19 @@ MEOW_new <- MEOW[c(7,7),] %>%
          geometry = c(NW_polygon$geometry, SW_polygon$geometry))
 # Reintroduce to MEOW
 MEOW <- rbind(MEOW[-7,], MEOW_new)
+unique(MEOW$ECOREGION)
 
 # Find SST pixels within Med MEOW
 registerDoParallel(cores = 7)
 med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel = T)
+
+# Prepare MME labels 32
+MEOW_label_coords <- MEOW %>% 
+  group_by(ECOREGION) %>% 
+  nest() %>% 
+  mutate(coords = purrr::map(data, extract_coords)) %>% 
+  dplyr::select(-data) %>% 
+  unnest(coords)
 
 
 # Annual summaries --------------------------------------------------------
@@ -740,9 +803,10 @@ load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if nece
 
 # The occurrences per year per pixel
 # MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>%
-#   dplyr::select(lon, lat, year, cum_int:`IV Extreme`) %>%
+#   dplyr::select(lon, lat, year, duration, cum_int:`IV Extreme`) %>%
 #   group_by(lon, lat, year) %>%
 #   summarise_all(sum)
+# gc()
 # MHW_cat_pixel_annual <- MHW_cat_pixel_monthly %>%
 #   group_by(lon, lat, year) %>%
 #   filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>%
@@ -750,6 +814,7 @@ load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if nece
 #   dplyr::select(lon:category, max_int) %>%
 #   unique() %>%
 #   left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year"))
+# rm(MHW_cat_pixel_annual_sum); gc()
 # save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_pixel_annual.RData")
 
@@ -830,41 +895,95 @@ load("data/MHW_cat_summary_annual.RData")
 # Create total summary figure
 # total_summary_fig()
 
+# Per pixel maps with MME -------------------------------------------------
+
+# Requires: MHW_cat_pixel_monthly.RData and MHW_cat_region.RData
+
 # Per pixel maps
-map_pixel_duration <- monthly_map_pixel("duration")
-ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 8, width = 20)
-map_pixel_category <- monthly_map_pixel("category")
-ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 8, width = 20)
+map_pixel_duration <- monthly_map_pixel("duration", annual = T)
+ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 7, width = 20)
+map_pixel_category <- monthly_map_pixel("category", annual = T)
+ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 7, width = 20)
+map_pixel_cum_int <- monthly_map_pixel("cum_int", annual = T)
+ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 20)
 
 
 # MHW metric time series and MME rug plot ---------------------------------
 
 
 
-# Stacked barplots of MHW metrics per year --------------------------------
-
-
-
-# Per pixel icum maps -----------------------------------------------------
-
-# Cumulative intensity is the focal variable
-# The ecoregions per pixel maps but for cumulative intensity over the full six months
-# Put a label over each region showing the count of MMEs
-# Or perhaps better as a plot on the side
-
-map_pixel_cum_int <- monthly_map_pixel("cum_int", month_sum = T)
-ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 10, width = 4)
-
 
 # Histograms of MME and MHW -----------------------------------------------
+
+# Requires: MHW_cat_region.RData
 
 # Very broad patterns are what we are looking for
 # Show histograms of MHWs per ecoregions next to histograms of MME per region
 # All of this only per 3 month season step
 # Then do the same figures for areas with lot's of MME records
 
+# Prepare MME points
+mme_points <- mme %>% 
+  filter(year %in% seq(2015, 2019),
+         EvenStart %in% c("Summer", "Autumn"))
 
-# Also maps showing broad stats for MEE and MHW per ecoregion
+# Complete region/year grid
+full_region_year_grid <- expand_grid(year = seq(2015, 2019), 
+                                     Ecoregion = unique(mme$Ecoregion))
+# Prepare MME labels
+mme_labels <- mme_points %>% 
+  group_by(year, Ecoregion) %>% 
+  summarise(count = n(), .groups = "drop") %>% 
+  right_join(full_region_year_grid, by = c("year", "Ecoregion")) %>% 
+  mutate(count = ifelse(is.na(count), 0, count)) %>% 
+  arrange(year, Ecoregion)
+
+# Filter data to target time period
+ecoregion_MME_MHW <- MHW_cat_region %>% 
+  filter(year %in% seq(2015, 2019),
+         month %in% lubridate::month(seq(6, 11), label = T, abb = T)) %>% 
+  group_by(region, year) %>% 
+  mutate(dur_prop = duration/pixels,
+         icum_prop = cum_int/pixels) %>% 
+  summarise(duration = sum(dur_prop, na.rm = T),
+            icum = sum(icum_prop, na.rm = T), .groups = "drop") %>% 
+  left_join(mme_labels, by = c("year", "region" = "Ecoregion"))
+
+# Barplot of durations
+bar_dur <- ecoregion_MME_MHW %>% 
+  ggplot(aes(x = year, y = duration)) +
+  geom_bar(aes(fill = icum), 
+           colour = "black",
+           stat = "identity", 
+           show.legend = T,
+           position = "dodge",
+           # position = position_stack(reverse = TRUE), 
+           width = 1) +
+  geom_label(aes(label = count)) +
+  scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
+  facet_wrap(~region) +
+  scale_y_continuous(limits = c(0, 105), breaks = c(25, 50, 75, 100)) +
+  scale_x_continuous(breaks = c(2015, 2017, 2019)) +
+  coord_cartesian(expand = F) +
+  labs(x = NULL, y = "Duration (days)", 
+       title = "Total MHW days over JJASON period",
+       subtitle = "Bar colour shows cumulative intensity and labels show MME count") +
+  guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        legend.position = c(0.83, 0.16),
+        legend.direction = "horizontal",
+        legend.key.width = unit(1, "cm"),
+        panel.background = element_rect(fill = "grey90"), 
+        strip.text = element_text(size = 12))
+# bar_dur
+ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
+
+
+
 
 # A figure somehow showing areas that were monitored but did not have mortality would be interesting
 # A boxplot of some sort
