@@ -659,27 +659,14 @@ monthly_map_pixel <- function(var_choice,
                               month_range = lubridate::month(seq(6, 11), label = F, abb = T)){
   
   # Reduce the dataframe to the desired  dimensions
-  MHW_cat_pixel_filter <- MHW_cat_pixel_monthly %>% 
-    filter(year %in% year_range,
-           month %in% month_range)
-  gc()
-  
-  # Combine months as desired
   if(annual){
-    MHW_cat_pixel_filter <- MHW_cat_pixel_filter %>% 
-      group_by(lon, lat, year) %>% 
-      summarise(duration = sum(duration, na.rm = T),
-                category = max(as.integer(category), na.rm = T),
-                max_int = max(max_int, na.rm = T),
-                cum_int = sum(cum_int, na.rm = T),
-                `I Moderate` = sum(`I Moderate`, na.rm = T),
-                `II Strong` = sum(`II Strong`, na.rm = T),
-                `III Severe` = sum(`III Severe`, na.rm = T),
-                `IV Extreme` = sum(`IV Extreme`, na.rm = T), .groups = "drop") %>% 
-      mutate(category = factor(category, levels = c(1, 2, 3, 4),
-                               labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
-    gc()
+    MHW_cat_pixel_filter <- MHW_cat_pixel_annual_JJASON
+  } else{
+    MHW_cat_pixel_filter <- MHW_cat_pixel_monthly %>% 
+      filter(year %in% year_range,
+             month %in% month_range)
   }
+  gc()
   
   # Ecoregions for faceting
   monthly_MEOW <- MHW_cat_region %>% 
@@ -799,7 +786,7 @@ MEOW_label_coords <- MEOW %>%
 # MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
 # ) # ~15 minutes on 7 cores, 344 seconds on 15 cores
 # save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
-load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
+# load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
 
 # The occurrences per year per pixel
 # MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>%
@@ -813,10 +800,31 @@ load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if nece
 #   filter(t == min(t)) %>%
 #   dplyr::select(lon:category, max_int) %>%
 #   unique() %>%
-#   left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year"))
+#   left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year")) %>% 
+#   dplyr::rename(duration_max = duration.x,
+#                 duration_sum = duration.y)
 # rm(MHW_cat_pixel_annual_sum); gc()
 # save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_pixel_annual.RData")
+
+# The occurrences per year per pixel JJASON
+# MHW_cat_pixel_annual_JJASON <- MHW_cat_pixel_monthly %>% 
+#   filter(year %in% seq(2015, 2019),
+#          month %in% lubridate::month(seq(6, 11), label = F, abb = T)) %>% 
+#     group_by(lon, lat, year) %>% 
+#     summarise(duration = sum(duration, na.rm = T),
+#               category = max(as.integer(category), na.rm = T),
+#               max_int = max(max_int, na.rm = T),
+#               cum_int = sum(cum_int, na.rm = T),
+#               `I Moderate` = sum(`I Moderate`, na.rm = T),
+#               `II Strong` = sum(`II Strong`, na.rm = T),
+#               `III Severe` = sum(`III Severe`, na.rm = T),
+#               `IV Extreme` = sum(`IV Extreme`, na.rm = T), .groups = "drop") %>% 
+#     mutate(category = factor(category, levels = c(1, 2, 3, 4),
+#                              labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
+# gc()
+# save(MHW_cat_pixel_annual_JJASON, file = "data/MHW_cat_pixel_annual_JJASON.RData")
+load("data/MHW_cat_pixel_annual_JJASON.RData")
 
 # The occurrences per day
 # system.time(
@@ -906,6 +914,101 @@ map_pixel_category <- monthly_map_pixel("category", annual = T)
 ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 7, width = 20)
 map_pixel_cum_int <- monthly_map_pixel("cum_int", annual = T)
 ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 20)
+
+
+# Single summary map ------------------------------------------------------
+
+# All five years combined duration and cumulative intensity versions
+# Have this to be anomalies against the historic average
+# Have a version with MME dots and one without
+# Have a blank map with just MME dots to put next to the coloured maps
+
+# Prepare MME points
+mme_points <- mme %>% 
+  filter(year %in% seq(2015, 2019),
+         EvenStart %in% c("Summer", "Autumn")) %>% 
+  group_by(lon, lat) %>% 
+  summarise(count = n(), .groups = "drop")
+
+# Determine historic medians per pixel
+MHW_cat_pixel_JJASON_clim_median <- MHW_cat_pixel_annual %>% 
+  filter(year %in% seq(1982, 2011),
+         month %in% seq(6, 11)) %>%
+  group_by(lon, lat) %>% 
+  summarise(duration_median = median(duration_sum, na.rm = T),
+            icum_median = median(cum_int, na.rm = T), .groups = "drop")
+
+# Create study period anomalies
+MHW_cat_pixel_JJASON_anom <- MHW_cat_pixel_annual_JJASON %>% 
+  group_by(lon, lat) %>% 
+  summarise(duration = mean(duration, na.rm = T),
+            icum = mean(cum_int, na.rm = T), .groups = "drop") %>% 
+  left_join(MHW_cat_pixel_JJASON_clim_median, by = c("lon", "lat")) %>% 
+  mutate(duration_anom = duration-duration_median,
+         icum_anom = icum-icum_median) %>% 
+  mutate(duration_anom = ifelse(duration_anom < 0, 0, duration_anom),
+         icum_anom = ifelse(icum_anom < 0, 0, icum_anom))
+  
+# Map of duration anom for JJASON
+anom_plot_dur <- med_base + 
+  geom_tile(data = MHW_cat_pixel_JJASON_anom, colour = NA,
+            aes(fill = duration_anom, x = lon, y = lat)) +
+  geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
+  scale_fill_gradient2(low = "white", high = "forestgreen") +
+  coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+  labs(fill = "Duration (days)",
+       title = "MHW Duration",
+       subtitle = "Average per year for 2015-2019 JJASON in excess of the 1982-2011 JJASON median") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = "bottom",
+        title = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18),
+        panel.background = element_rect(fill = "grey90"), 
+        strip.text = element_text(size = 16))
+# anom_plot_dur
+
+# Map of icum anom for JJASON
+anom_plot_icum <- med_base + 
+  geom_tile(data = MHW_cat_pixel_JJASON_anom, colour = NA,
+            aes(fill = icum_anom, x = lon, y = lat)) +
+  geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
+  scale_fill_gradient2(low = "white", high = "darkorchid") +
+  coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+  labs(fill = "Cumulative\nintensity (°C days)", 
+       title = "MHW Cumulative Intensity",
+       subtitle = "Average per year for 2015-2019 JJASON in excess of the 1982-2011 JJASON median") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = "bottom",
+        title = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18),
+        panel.background = element_rect(fill = "grey90"), 
+        strip.text = element_text(size = 16))
+# anom_plot_icum
+
+# Global map of MHW occurrence
+anom_plot_mme <- med_base + 
+  geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
+  geom_point(data = mme_points, aes(x = lon, y = lat, size = count), 
+             alpha = 0.7, shape = 21, fill = "yellow", colour = "red") +
+  coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
+  labs(size = "MME count (n)",
+       title = "MME occurrence",
+       subtitle = "Recorded events for 2015-2019 Summer/Autumn 0-10 m (no Pinna nobilis)") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = "bottom",
+        title = element_text(size = 18),
+        legend.text = element_text(size = 16),
+        legend.title = element_text(size = 18),
+        panel.background = element_rect(fill = "grey90"), 
+        strip.text = element_text(size = 16))
+# anom_plot_mme
+
+# Combine and save
+anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum, anom_plot_mme, 
+                              ncol = 3, nrow = 1, align = "hv")
+ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 8, width = 34)
 
 
 # MHW metric time series and MME rug plot ---------------------------------
