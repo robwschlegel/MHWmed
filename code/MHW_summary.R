@@ -47,7 +47,7 @@ load("metadata/med_sea_coords.RData")
 mme <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
   dplyr::select(Year:`Damaged qualitative`) %>% # Filter out 'No' values
   filter(`Damaged qualitative` != "No",
-         `Upper Depth` <= 10,
+         # `Upper Depth` <= 10,
          Species != "Pinna nobilis") %>% 
   dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
   mutate(Ecoregion = case_when(Ecoregion == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
@@ -694,7 +694,7 @@ monthly_map_pixel <- function(var_choice,
   
   # Determine colour for MME dots
   if(var_choice != "category"){
-    point_colour <- "red"
+    point_colour <- "forestgreen"
   } else{
     point_colour <- "black"
   }
@@ -806,7 +806,7 @@ MEOW_label_coords <- MEOW %>%
 #                 duration_sum = duration.y)
 # rm(MHW_cat_pixel_annual_sum); gc()
 # save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
-# load("data/MHW_cat_pixel_annual.RData")
+load("data/MHW_cat_pixel_annual.RData")
 
 # The occurrences per year per pixel JJASON
 # MHW_cat_pixel_annual_JJASON <- MHW_cat_pixel_monthly %>%
@@ -831,7 +831,7 @@ load("data/MHW_cat_pixel_annual_JJASON.RData")
 # MHW_cat_daily_annual <- plyr::ldply(res_files, cat_daily_calc, .parallel = T)
 # ) # 258 seconds on 7 cores
 # save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
-# load("data/MHW_cat_daily_annual.RData")
+load("data/MHW_cat_daily_annual.RData")
 
 
 # Ecoregion summaries -----------------------------------------------------
@@ -862,6 +862,11 @@ load("data/MHW_cat_region.RData")
 
 # Total summaries ---------------------------------------------------------
 
+## TODO: Change this for only the JJASON period. 
+## Also update the panels to only two, with one having a double y-axis
+## Overlay th e values from the global averages so that a reader can visually compare what is happening in the Med vs. global
+## This could be done with overlaid dashed lines per category
+
 # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
 # MHW_cat_first_annual <- MHW_cat_pixel_annual %>%
 #   group_by(t, year, category) %>%
@@ -890,6 +895,35 @@ load("data/MHW_cat_region.RData")
 load("data/MHW_cat_summary_annual.RData")
 
 
+# The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
+# MHW_cat_first_annual_JJASON <- MHW_cat_pixel_annual_JJASON %>%
+#   group_by(year, category) %>%
+#   summarise(first_n = n(), .groups = "drop") %>%
+#   right_join(full_annual_grid, by = c("year", "category")) %>%
+#   arrange(year, category) %>%
+#   mutate(first_n = ifelse(is.na(first_n), 0, first_n),
+#          first_n_prop = round(first_n/nrow(med_sea_coords), 4)) %>%
+#   # arrange(t, category) %>%
+#   group_by(year, category) %>%
+#   mutate(first_n_cum = cumsum(first_n),
+#          first_n_cum_prop = round(first_n_cum/nrow(med_sea_coords), 4)) %>%
+#   ungroup()
+
+# The count of categories of MHWs happening on a given day, and cumulatively throughout the year
+# MHW_cat_summary_annual_JJASON <- MHW_cat_pixel_annual_JJASON %>%
+#   dplyr::select(lon:year, `I Moderate`:`IV Extreme`) %>% 
+#   pivot_longer(`I Moderate`:`IV Extreme`, names_to = "category", values_to = "cat_n") %>% 
+#   group_by(year, category) %>%
+#   summarise(cat_n = sum(cat_n), .groups = "keep") %>%
+#   mutate(cat_n_prop = round(cat_n/nrow(med_sea_coords), 4)) %>%
+#   group_by(year, category) %>%
+#   mutate(cat_n_cum = cumsum(cat_n),
+#          cat_n_cum_prop = round(cat_n_cum/nrow(med_sea_coords), 4)) %>%
+#   right_join(MHW_cat_first_annual_JJASON, by = c("year", "category"))
+# save(MHW_cat_summary_annual_JJASON, file = "data/MHW_cat_summary_annual_JJASON.RData")
+load("data/MHW_cat_summary_annual_JJASON.RData")
+
+
 # Summary figures ---------------------------------------------------------
 
 # NB: These require objects to be in the environment that are added by the above code
@@ -901,7 +935,8 @@ load("data/MHW_cat_summary_annual.RData")
 # plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
-# total_summary_fig()
+total_summary_fig()
+
 
 # Per pixel maps with MME -------------------------------------------------
 
@@ -919,6 +954,8 @@ ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 2
 # Single summary map ------------------------------------------------------
 
 # Requires: MHW_cat_pixel_monthly, MHW_cat_pixel_annual_JJASON
+
+# TODO: Add 0 value contours to maps to show no excess
 
 # Prepare MME points
 mme_damage <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
@@ -1041,12 +1078,63 @@ anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum, anom_plot_mme, anom
 ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 
 
+# Spatial MME vs MHW maps -------------------------------------------------
+
+# MHW days may be the easiest to communicate
+# °C is important, but may not be as accessible
+# May need to have multiple maps. Faceted in one figure.
+
+# MME filtering
+# Definitely run comparisons with MHW at the smallest scale
+# Pixel level at the nearest sites with MME records
+# MMEs on the surface should be 15 or shallower
+# The regularly monitored MME sites are going to be labelled in the main spreadsheet over the week
+# For comparisons try the multiple different temporal levels: all 5 years, per year, per season per year, whole period per ecoregion
+# Barplots with top pointing bar for MME and downward pointing bar for MHW
+
+# Will need to extract a coastal stripe of pixels
+
+# Comparisons of MME and MHW per pixel vs. whole ecoregion
+
+# The multi-panel MHW metric maps will be better in a supplemental, so we will want to keep them in circulation
+# Or maybe we do want multi-panels because MMEs change so much from year to year spatially
+
+# A good investigation would be to see where MMEs occurred when there were no or very low MHW
+# This would be done as part of the per pixel comparisons
+# A second layer would be to see where MMEs do/don't occur compared against 
+# the median MHW anomaly values against the climatology period
+
+# Comparisons must be made by species
+# Gorgonians are a good starting point as they are almost certainly temperature driven MME
+# Certain species are better choices than others: Paramuricea clavata, Eunicella singularis, Eunicella cavolini, Corallium rubrum
+# The first three can be grouped as necessary
+# Gorgonians tend to start dying more often near the end of summer
+# Fish are a bad choice, and Sapia
+
+# To the maps also add a panel showing SSTmax. Could show trends, too.
+
+# 4 maps to bring to the overall group
+# Trend in SSTmax or 99th percentile JJASON shown as the total (slope * total years)
+# Trend for average SST JJASON as above  
+# MHW duration, median anomaly perhaps (Rob) JJASON
+# Cumulative intensity as for Duration JJASON
+
+# We as the experts should chose the MHW metric to show
+# Show how this metric relates to MME by  species for spatial, temporal, depth ranges
+
+
+# Temporal summary figure -------------------------------------------------
+
+
+
 # MHW metric time series and MME rug plot ---------------------------------
 
 
 
-
 # Histograms of MME and MHW -----------------------------------------------
+
+## TODO: Use the per pixel comparison results for the ecoregion values
+## Also add a panel for the whole Med and order by West to East
 
 # Requires: MHW_cat_region.RData
 
