@@ -864,7 +864,7 @@ load("data/MHW_cat_region.RData")
 
 ## TODO: Change this for only the JJASON period. 
 ## Also update the panels to only two, with one having a double y-axis
-## Overlay th e values from the global averages so that a reader can visually compare what is happening in the Med vs. global
+## Overlay the values from the global averages so that a reader can visually compare what is happening in the Med vs. global
 ## This could be done with overlaid dashed lines per category
 
 # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
