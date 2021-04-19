@@ -44,12 +44,19 @@ res_files <- dir("data/MHW", full.names = T)
 load("metadata/med_sea_coords.RData")
 
 # MME data
-mme <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
-  dplyr::select(Year:`Damaged qualitative`) %>% # Filter out 'No' values
+mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME dataset.csv", guess_max = 1000) %>% 
+  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
+  mutate(year = as.numeric(gsub('[.]', '', as.character(year))),
+         lon = as.numeric(gsub('[,]', '.', as.character(lon))),
+         lat = as.numeric(sub("(.{2})(.*)", "\\1.\\2", lat)),
+         `Lower Depth` = as.numeric(gsub('[,]', '.', as.character(`Lower Depth`))),
+         `Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Upper Depth`))),
+         `Mortality Lower Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Lower Depth`))),
+         `Mortality Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Upper Depth`)))) %>% 
+  dplyr::select(year:`Damaged qualitative`) %>% # Filter out 'No' values
   filter(`Damaged qualitative` != "No",
          # `Upper Depth` <= 10,
          Species != "Pinna nobilis") %>% 
-  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
   mutate(Ecoregion = case_when(Ecoregion == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
                                Ecoregion == "Western Mediterranean" & lat < 39 ~ "Southwestern Mediterranean",
                                TRUE ~ Ecoregion))
@@ -862,7 +869,7 @@ load("data/MHW_cat_region.RData")
 
 # Total summaries ---------------------------------------------------------
 
-## TODO: Change this for only the JJASON period. 
+## TODO: Change this for only the JJASON period.
 ## Also update the panels to only two, with one having a double y-axis
 ## Overlay the values from the global averages so that a reader can visually compare what is happening in the Med vs. global
 ## This could be done with overlaid dashed lines per category
@@ -1076,6 +1083,13 @@ anom_plot_mme_no <- med_base +
 anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum, anom_plot_mme, anom_plot_mme_no,
                               ncol = 2, nrow = 2, align = "hv")
 ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
+
+
+# SST meta-data -----------------------------------------------------------
+
+# Need to create a spreadsheet that shows which SST pixels are paired to which MME records
+# MME_ID, lon_sst, lat_sst, lon_mme, lat_mme, distance
+# Also have a column for MHW days and cumulative intensity for that year for JJASON
 
 
 # Spatial MME vs MHW maps -------------------------------------------------
