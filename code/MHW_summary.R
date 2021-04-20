@@ -30,6 +30,8 @@
 
 # The needed packages
 library(tidyverse)
+library(FNN)
+library(geosphere)
 library(sf)
 library(sfheaders)
 library(doParallel); registerDoParallel(cores = 7)
@@ -42,6 +44,8 @@ res_files <- dir("data/MHW", full.names = T)
 
 # The coords with SST
 load("metadata/med_sea_coords.RData")
+lat_idx <- unique(med_sea_coords$lat)
+lon_idx <- unique(med_sea_coords$lon)
 
 # MME data
 mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME dataset.csv", guess_max = 1000) %>% 
@@ -55,7 +59,7 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
          `Mortality Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Upper Depth`)))) %>% 
   dplyr::select(year:`Damaged qualitative`) %>% # Filter out 'No' values
   filter(`Damaged qualitative` != "No",
-         # `Upper Depth` <= 10,
+         # `Upper Depth` <= 15,
          Species != "Pinna nobilis") %>% 
   mutate(Ecoregion = case_when(Ecoregion == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
                                Ecoregion == "Western Mediterranean" & lat < 39 ~ "Southwestern Mediterranean",
@@ -159,6 +163,51 @@ load_cat_daily <- function(file_name, lon_range = NA){
   # Clean up and exit
   rm(res_full); gc()
   return(cat_clim)
+}
+
+# Load MHW results per pixel
+load_event_cat <- function(df){
+  
+  lat_pixel <- df$lat_sst[1] 
+  lon_pixel <- df$lon_sst
+  
+  # Load data
+  res_full <- readRDS(res_files[which(lat_idx == lat_pixel)]) %>% 
+    dplyr::filter(lon %in% lon_pixel)
+  gc()
+  
+  # Unnest event and cat results
+  event_event <- res_full %>% 
+    dplyr::select(-cat) %>% 
+    unnest(event) %>% 
+    filter(row_number() %% 2 == 0) %>% 
+    unnest(event) %>% 
+    ungroup()
+  cat_event <- res_full %>% 
+    dplyr::select(-event) %>% 
+    unnest(cat) %>% 
+    filter(row_number() %% 2 == 0) %>% 
+    unnest(cat) %>% 
+    ungroup()
+  
+  # Merge and exit
+  all_event <- left_join(event_event, cat_event, 
+                         by = c("lon", "lat", "event_no", "duration", 
+                                "intensity_max" = "i_max", "date_peak" = "peak_date"))
+  rm(res_full); gc()
+  return(all_event)
+}
+
+# Find the nearest grid cells for each site
+grid_match <- function(coords1, coords2){
+  coords2$idx <- 1:nrow(coords2)
+  grid_index <- data.frame(coords1,
+                           idx = knnx.index(data = as.matrix(coords2[,1:2]),
+                                            query = as.matrix(coords1[,1:2]), k = 1))
+  grid_points <- left_join(grid_index, coords2, by = c("idx")) %>% 
+    mutate(dist = round(distHaversine(cbind(lon.x, lat.x),
+                                      cbind(lon.y, lat.y))/1000, 2), idx = NULL)
+  return(grid_points)
 }
 
 # Function for calculating stats for each individual pixel
@@ -1091,6 +1140,44 @@ ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 # MME_ID, lon_sst, lat_sst, lon_mme, lat_mme, distance
 # Also have a column for MHW days and cumulative intensity for that year for JJASON
 
+# Match pixels
+lon_lat_match <- grid_match(distinct(dplyr::select(mme, lon, lat)), distinct(dplyr::select(med_sea_coords, lon, lat))) %>% 
+  dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon_sst = lon.y, lat_sst = lat.y)
+
+# Extract MHW results for paired pixels
+doParallel::registerDoParallel(cores = 15)
+site_event_cat <- plyr::ddply(lon_lat_match, c("lat_sst"), load_event_cat, .parallel = T)
+
+# Calculate annual MHW stats per pixel
+site_MHW_summary <- site_event_cat %>% 
+  dplyr::rename(lon_sst = lon) %>% 
+  dplyr::select(-lat) %>% 
+  mutate(year = lubridate::year(date_peak),
+         month = lubridate::month(date_peak)) %>%
+  filter(month %in% seq(6, 11)) %>% 
+  group_by(lon_sst, lat_sst, year) %>% 
+  summarise(count_MHW = n(),
+            duration = sum(duration, na.rm = T),
+            imean = round(mean(intensity_mean, na.rm = T), 2),
+            icum = round(sum(intensity_cumulative, na.rm = T)), .groups = "drop")
+
+# Calculate annual MME stats per site
+site_MME_summary <- mme %>% 
+  filter(EvenStart %in% c("Summer", "Autumn"),
+         `Upper Depth` <= 15) %>% 
+  group_by(year, Ecoregion, Location, lon, lat) %>% 
+  summarise(`Damaged percentage` = round(mean(`Damaged percentage`, na.rm = T)),
+            count_MME = n(), .groups = "drop") %>% 
+  dplyr::rename(lon_mme = lon, lat_mme = lat)
+
+# Join them together
+site_MME_MHW_summary <- lon_lat_match %>% 
+  left_join(site_MME_summary, by = c("lon_mme", "lat_mme")) %>% 
+  left_join(site_MHW_summary, by = c("lon_sst", "lat_sst", "year")) %>% 
+  filter(year > 0) %>% # Filter out rows where there are pixels but no MME
+  replace(is.na(.), 0) # Fill in the 4 no MHW rows with 0's
+write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
+
 
 # Spatial MME vs MHW maps -------------------------------------------------
 
@@ -1234,8 +1321,6 @@ ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
 # Like a density plot, sort of...
 # Could use alpha with histograms to show overlay of different years for MME and MHW stats
 
-# Consider showing figures that have values in excess of the median for the whole time period
-# In this way we can still include the stats from the whole time series without needing extra figures
-
 # Time series barplots per site will be good to show as back up
 # But instead of showing MHW time series, show the occurrence/days/icum as bars per season with MME
+

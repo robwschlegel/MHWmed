@@ -402,3 +402,4 @@ ggplot(data = filter(MHW_res_clim,
                                                    size = c(0.6, 0.7, 0.7, 0.7, 0.7, 0.7)))) +
   labs(y = "Temperature (°C)", x = NULL) +
   facet_wrap(~Location)
+
