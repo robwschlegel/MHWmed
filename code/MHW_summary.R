@@ -120,8 +120,8 @@ points_in_region <- function(region_in){
     mutate(in_grid = sp::point.in.polygon(point.x = med_sea_coords[["lon"]], point.y = med_sea_coords[["lat"]], 
                                           pol.x = region_sub[["lon"]], pol.y = region_sub[["lat"]])) %>% 
     filter(in_grid >= 1) %>% 
-    mutate(region = region_in) %>% 
-    dplyr::select(lon, lat, region)
+    mutate(Ecoregion = region_in) %>% 
+    dplyr::select(lon, lat, Ecoregion)
   return(coords_in)
 }
 
@@ -1139,8 +1139,9 @@ ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 # Also have a column for MHW days and cumulative intensity for that year for JJASON
 
 # Match pixels
-lon_lat_match <- grid_match(distinct(dplyr::select(mme, lon, lat)), distinct(dplyr::select(med_sea_coords, lon, lat))) %>% 
-  dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon_sst = lon.y, lat_sst = lat.y)
+lon_lat_match <- grid_match(distinct(dplyr::select(mme, lon, lat)), distinct(dplyr::select(med_regions, lon, lat))) %>% 
+  dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
+  left_join(med_regions, by = c("lon_sst" = "lon", "lat_sst" = "lat"))
 
 # Create full annual grid
 lon_lat_match_full_grid <- expand_grid(year = seq(1982, 2019), lon_lat_match)
@@ -1177,7 +1178,7 @@ site_MME_summary <- mme %>%
 site_MME_MHW_summary <- lon_lat_match_full_grid %>% 
   left_join(site_MHW_summary, by = c("lon_sst", "lat_sst", "year")) %>% 
   replace(is.na(.), 0) %>%  # Fill in the no MHW rows with 0's
-  left_join(site_MME_summary, by = c("lon_mme", "lat_mme", "year")) %>% 
+  left_join(site_MME_summary, by = c("lon_mme", "lat_mme", "Ecoregion", "year")) %>% 
   filter(year >= 2015)
 write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 
@@ -1329,7 +1330,9 @@ site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 
 # Prepare MME points
 mme_points <- mme %>% 
-  filter(year %in% seq(2015, 2019),
+  filter(Species != "Pinna nobilis",
+         `Damaged qualitative` != "No",
+         `Upper Depth` <= 15,
          EvenStart %in% c("Summer", "Autumn"))
 
 # Complete region/year grid
@@ -1345,13 +1348,37 @@ mme_labels <- mme_points %>%
 
 # Filter data to target time period
 ecoregion_MME_MHW <- site_MME_MHW_summary %>% 
-  dplyr::select(Ecoregion, year, `Damaged percentage`:icum) %>% 
+  dplyr::select(Ecoregion, year, count_MHW:count_MME, -Location) %>% 
   group_by(Ecoregion, year) %>% 
+  summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T),
+            count_MME_sum = sum(count_MME, na.rm = T),
+            count_MME_mean = mean(count_MME, na.rm = T),
+            count_MHW_sum = sum(count_MHW, na.rm = T),
+            # count_MHW_mean = mean(count_MHW),
+            duration = mean(duration, na.rm = T),
+            # imean = mean(imean),
+            icum = mean(icum, na.rm = T), .groups = "drop") %>% 
+  # left_join(mme_labels, by = c("year", "Ecoregion")) %>% 
+  replace(is.na(.), 0)
+
+# Create a whole Med summary
+ecoregion_MME_MHW_med <- ecoregion_MME_MHW %>% 
+  group_by(year) %>% 
   summarise_all(mean, na.rm = T, .groups = "drop") %>% 
-  left_join(mme_labels, by = c("year", "Ecoregion"))
+  mutate(Ecoregion = "Mediterranean",
+         count_MME_sum = round(count_MME_sum))
+
+# Combine and order factor for plotting
+ecoregion_MME_MHW_all <- rbind(ecoregion_MME_MHW, ecoregion_MME_MHW_med) %>% 
+  mutate(Ecoregion = factor(Ecoregion, 
+                            levels = c("Mediterranean",
+                                       "Alboran Sea", "Northwestern Mediterranean", 
+                                       "Southwestern Mediterranean", "Adriatic Sea",
+                                       "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
+                                       "Aegean Sea", "Levantine Sea")))
 
 # Barplot of durations
-bar_dur <- ecoregion_MME_MHW %>% 
+bar_dur <- ecoregion_MME_MHW_all %>% 
   ggplot(aes(x = year, y = duration)) +
   geom_bar(aes(fill = icum), 
            colour = "black",
@@ -1360,7 +1387,7 @@ bar_dur <- ecoregion_MME_MHW %>%
            position = "dodge",
            # position = position_stack(reverse = TRUE), 
            width = 1) +
-  geom_label(aes(label = count)) +
+  geom_label(aes(label = count_MME_sum)) +
   scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
   facet_wrap(~Ecoregion) +
   scale_y_continuous(limits = c(0, 105), breaks = c(25, 50, 75, 100)) +
@@ -1369,14 +1396,15 @@ bar_dur <- ecoregion_MME_MHW %>%
   labs(x = NULL, y = "Duration (days)", 
        title = "Total MHW days over JJASON period",
        subtitle = "Bar colour shows cumulative intensity and labels show MME count") +
-  guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+  # guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         axis.text = element_text(size = 12),
         axis.title = element_text(size = 14),
         legend.text = element_text(size = 12),
         legend.title = element_text(size = 14),
-        legend.position = c(0.83, 0.16),
-        legend.direction = "horizontal",
+        # legend.position = c(0.83, 0.16),
+        legend.position = "bottom",
+        # legend.direction = "horizontal",
         legend.key.width = unit(1, "cm"),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 12))
