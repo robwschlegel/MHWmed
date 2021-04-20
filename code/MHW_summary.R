@@ -1178,6 +1178,16 @@ site_MME_MHW_summary <- lon_lat_match %>%
   replace(is.na(.), 0) # Fill in the 4 no MHW rows with 0's
 write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 
+# Scatterplot of MME and MHW summaries
+scatter_MME_MHW <- site_MME_MHW_summary %>% 
+  pivot_longer(count_MHW:icum) %>% 
+  ggplot(aes(x = value, y = count_MME)) +
+  geom_point(aes(colour = Ecoregion)) +
+  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
+  facet_wrap(~name, scales = "free_x") +
+  theme(legend.position = "bottom")
+ggsave("figures/scatter_MME_MHW.png", height = 6, width = 8)
+
 
 # Spatial MME vs MHW maps -------------------------------------------------
 
@@ -1189,7 +1199,7 @@ write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 # Definitely run comparisons with MHW at the smallest scale
 # Pixel level at the nearest sites with MME records
 # MMEs on the surface should be 15 or shallower
-# The regularly monitored MME sites are going to be labelled in the main spreadsheet over the week
+# The regularly monitored MME sites are going to be labeled in the main spreadsheet over the week
 # For comparisons try the multiple different temporal levels: all 5 years, per year, per season per year, whole period per ecoregion
 # Barplots with top pointing bar for MME and downward pointing bar for MHW
 
@@ -1217,11 +1227,11 @@ write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 # 4 maps to bring to the overall group
 # Trend in SSTmax or 99th percentile JJASON shown as the total (slope * total years)
 # Trend for average SST JJASON as above  
-# MHW duration, median anomaly perhaps (Rob) JJASON
+# MHW duration, median anomaly perhaps JJASON
 # Cumulative intensity as for Duration JJASON
 
 # We as the experts should chose the MHW metric to show
-# Show how this metric relates to MME by  species for spatial, temporal, depth ranges
+# Show how this metric relates to MME by species for spatial, temporal, depth ranges
 
 
 # Temporal summary figure -------------------------------------------------
@@ -1237,12 +1247,13 @@ write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 ## TODO: Use the per pixel comparison results for the ecoregion values
 ## Also add a panel for the whole Med and order by West to East
 
-# Requires: MHW_cat_region.RData
-
 # Very broad patterns are what we are looking for
 # Show histograms of MHWs per ecoregions next to histograms of MME per region
 # All of this only per 3 month season step
 # Then do the same figures for areas with lot's of MME records
+
+# Requires: site_MME_MHW_summary
+site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 
 # Prepare MME points
 mme_points <- mme %>% 
@@ -1261,15 +1272,11 @@ mme_labels <- mme_points %>%
   arrange(year, Ecoregion)
 
 # Filter data to target time period
-ecoregion_MME_MHW <- MHW_cat_region %>% 
-  filter(year %in% seq(2015, 2019),
-         month %in% lubridate::month(seq(6, 11), label = T, abb = T)) %>% 
-  group_by(region, year) %>% 
-  mutate(dur_prop = duration/pixels,
-         icum_prop = cum_int/pixels) %>% 
-  summarise(duration = sum(dur_prop, na.rm = T),
-            icum = sum(icum_prop, na.rm = T), .groups = "drop") %>% 
-  left_join(mme_labels, by = c("year", "region" = "Ecoregion"))
+ecoregion_MME_MHW <- site_MME_MHW_summary %>% 
+  dplyr::select(Ecoregion, year, `Damaged percentage`:icum) %>% 
+  group_by(Ecoregion, year) %>% 
+  summarise_all(mean, na.rm = T, .groups = "drop") %>% 
+  left_join(mme_labels, by = c("year", "Ecoregion"))
 
 # Barplot of durations
 bar_dur <- ecoregion_MME_MHW %>% 
