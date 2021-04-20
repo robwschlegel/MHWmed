@@ -1179,14 +1179,42 @@ site_MME_MHW_summary <- lon_lat_match %>%
 write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 
 # Scatterplot of MME and MHW summaries
-scatter_MME_MHW <- site_MME_MHW_summary %>% 
+scatter_MME_MHW_site <- site_MME_MHW_summary %>% 
   pivot_longer(count_MHW:icum) %>% 
   ggplot(aes(x = value, y = count_MME)) +
   geom_point(aes(colour = Ecoregion)) +
   geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
-  facet_wrap(~name, scales = "free_x") +
-  theme(legend.position = "bottom")
-ggsave("figures/scatter_MME_MHW.png", height = 6, width = 8)
+  labs(y = "MME count per site/year", x = NULL,
+       title = "MME per site and year compared to MHW metrics (JJASON)") +
+  facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
+  theme(legend.position = "bottom", 
+        strip.placement = "outside", strip.background = element_blank())
+scatter_MME_MHW_site
+
+scatter_MME_MHW_ecoregion <- site_MME_MHW_summary %>% 
+  group_by(Ecoregion, year) %>% 
+  summarise(`Damaged percentage` = mean(`Damaged percentage`),
+            count_MME_sum = sum(count_MME),
+            count_MME_mean = mean(count_MME),
+            count_MHW_sum = sum(count_MHW),
+            # count_MHW_mean = mean(count_MHW),
+            duration = mean(duration),
+            imean = mean(imean),
+            icum = mean(icum), .groups = "drop") %>% 
+  pivot_longer(count_MHW_sum:icum) %>% 
+  ggplot(aes(x = value, y = count_MME_sum)) +
+  geom_point(aes(colour = Ecoregion)) +
+  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
+  labs(y = "MME count per ecoregion/year", x = NULL,
+       title = "MME per ecoregion and year compared to MHW metrics (JJASON)") +
+  facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
+  theme(legend.position = "bottom", 
+        strip.placement = "outside", strip.background = element_blank())
+scatter_MME_MHW_ecoregion
+
+scatter_MME_MHW <- ggpubr::ggarrange(scatter_MME_MHW_site, scatter_MME_MHW_ecoregion, 
+                                     ncol = 2, nrow = 1, common.legend = T, legend = "bottom")
+ggsave("figures/scatter_MME_MHW.png", height = 6, width = 14)
 
 
 # Spatial MME vs MHW maps -------------------------------------------------
