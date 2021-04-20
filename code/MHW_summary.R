@@ -57,10 +57,10 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
          `Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Upper Depth`))),
          `Mortality Lower Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Lower Depth`))),
          `Mortality Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Upper Depth`)))) %>% 
-  dplyr::select(year:`Damaged qualitative`) %>% # Filter out 'No' values
-  filter(`Damaged qualitative` != "No",
+  dplyr::select(year:`Damaged qualitative`) %>%
+  # filter(`Damaged qualitative` != "No", # Filter out 'No' values
          # `Upper Depth` <= 15,
-         Species != "Pinna nobilis") %>% 
+         # Species != "Pinna nobilis") %>% 
   mutate(Ecoregion = case_when(Ecoregion == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
                                Ecoregion == "Western Mediterranean" & lat < 39 ~ "Southwestern Mediterranean",
                                TRUE ~ Ecoregion))
@@ -1010,40 +1010,34 @@ ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 2
 # Single summary map ------------------------------------------------------
 
 # Requires: MHW_cat_pixel_monthly, MHW_cat_pixel_annual_JJASON
-
-# TODO: Add 0 value contours to maps to show no excess
+load("data/MHW_cat_pixel_annual_JJASON.RData")
 
 # Prepare MME points
-mme_damage <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
-  dplyr::select(Year:`Damaged qualitative`) %>% # Filter out 'No' values
+mme_damage <- mme %>% 
   filter(`Damaged qualitative` != "No",
-         # `Upper Depth` <= 10,
-         Species != "Pinna nobilis") %>%
-  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
-  filter(year %in% seq(2015, 2019),
+         `Upper Depth` <= 15,
+         Species != "Pinna nobilis",
          EvenStart %in% c("Summer", "Autumn")) %>% 
   group_by(lon, lat) %>% 
   summarise(count = n(), .groups = "drop")
-mme_no <- read_csv("data/UPDATED_MassMortalityEvents15-19_30032021.csv", guess_max = 1000) %>% 
-  dplyr::select(Year:`Damaged qualitative`) %>% # Filter out 'No' values
+mme_no <- mme %>% 
   filter(`Damaged qualitative` == "No",
-         # `Upper Depth` <= 10,
-         Species != "Pinna nobilis") %>%
-  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
-  filter(year %in% seq(2015, 2019),
+         `Upper Depth` <= 15,
+         Species != "Pinna nobilis",
          EvenStart %in% c("Summer", "Autumn")) %>% 
   group_by(lon, lat) %>% 
   summarise(count = n(), .groups = "drop")
 
 # Determine historic medians per pixel
 MHW_cat_pixel_JJASON_clim_median <- MHW_cat_pixel_annual_JJASON %>% 
-  filter(year %in% seq(1982, 2011)) %>%
+  filter(year %in% seq(1982, 2014)) %>%
   group_by(lon, lat) %>% 
   summarise(duration_median = median(duration, na.rm = T),
             icum_median = median(cum_int, na.rm = T), .groups = "drop")
 
 # Create study period anomalies
 MHW_cat_pixel_JJASON_anom <- MHW_cat_pixel_annual_JJASON %>% 
+  right_join(med_regions, by = c("lon", "lat")) %>% 
   filter(year %in% seq(2015, 2019)) %>%
   group_by(lon, lat) %>% 
   summarise(duration = mean(duration, na.rm = T),
@@ -1058,6 +1052,8 @@ MHW_cat_pixel_JJASON_anom <- MHW_cat_pixel_annual_JJASON %>%
 anom_plot_dur <- med_base + 
   geom_tile(data = MHW_cat_pixel_JJASON_anom, colour = NA,
             aes(fill = duration_anom, x = lon, y = lat)) +
+  geom_contour(data = MHW_cat_pixel_JJASON_anom, colour = "black",
+               aes(x = lon, y = lat, z = duration_anom), breaks = c(1)) +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
   scale_fill_gradient2(low = "white", high = "forestgreen") +
   coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
@@ -1071,12 +1067,14 @@ anom_plot_dur <- med_base +
         legend.title = element_text(size = 18),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 16))
-# anom_plot_dur
+anom_plot_dur
 
 # Map of icum anom for JJASON
 anom_plot_icum <- med_base + 
   geom_tile(data = MHW_cat_pixel_JJASON_anom, colour = NA,
             aes(fill = icum_anom, x = lon, y = lat)) +
+  geom_contour(data = MHW_cat_pixel_JJASON_anom, colour = "black",
+               aes(x = lon, y = lat, z = icum_anom), breaks = c(1)) +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
   scale_fill_gradient2(low = "white", high = "darkorchid") +
   coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
@@ -1090,7 +1088,7 @@ anom_plot_icum <- med_base +
         legend.title = element_text(size = 18),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 16))
-# anom_plot_icum
+anom_plot_icum
 
 # MME damage
 anom_plot_mme <- med_base + 
@@ -1144,6 +1142,9 @@ ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 lon_lat_match <- grid_match(distinct(dplyr::select(mme, lon, lat)), distinct(dplyr::select(med_sea_coords, lon, lat))) %>% 
   dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon_sst = lon.y, lat_sst = lat.y)
 
+# Create full annual grid
+lon_lat_match_full_grid <- expand_grid(year = seq(1982, 2019), lon_lat_match)
+
 # Extract MHW results for paired pixels
 doParallel::registerDoParallel(cores = 15)
 site_event_cat <- plyr::ddply(lon_lat_match, c("lat_sst"), load_event_cat, .parallel = T)
@@ -1158,40 +1159,59 @@ site_MHW_summary <- site_event_cat %>%
   group_by(lon_sst, lat_sst, year) %>% 
   summarise(count_MHW = n(),
             duration = sum(duration, na.rm = T),
-            imean = round(mean(intensity_mean, na.rm = T), 2),
+            # imean = round(mean(intensity_mean, na.rm = T), 2),
             icum = round(sum(intensity_cumulative, na.rm = T)), .groups = "drop")
 
 # Calculate annual MME stats per site
 site_MME_summary <- mme %>% 
-  filter(EvenStart %in% c("Summer", "Autumn"),
-         `Upper Depth` <= 15) %>% 
+  filter(`Damaged qualitative` != "No",
+         `Upper Depth` <= 15,
+         Species != "Pinna nobilis",
+         EvenStart %in% c("Summer", "Autumn")) %>% 
   group_by(year, Ecoregion, Location, lon, lat) %>% 
   summarise(`Damaged percentage` = round(mean(`Damaged percentage`, na.rm = T)),
             count_MME = n(), .groups = "drop") %>% 
   dplyr::rename(lon_mme = lon, lat_mme = lat)
 
 # Join them together
-site_MME_MHW_summary <- lon_lat_match %>% 
-  left_join(site_MME_summary, by = c("lon_mme", "lat_mme")) %>% 
+site_MME_MHW_summary <- lon_lat_match_full_grid %>% 
   left_join(site_MHW_summary, by = c("lon_sst", "lat_sst", "year")) %>% 
-  filter(year > 0) %>% # Filter out rows where there are pixels but no MME
-  replace(is.na(.), 0) # Fill in the 4 no MHW rows with 0's
+  replace(is.na(.), 0) %>%  # Fill in the no MHW rows with 0's
+  left_join(site_MME_summary, by = c("lon_mme", "lat_mme", "year")) %>% 
+  filter(year >= 2015)
 write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 
-# Scatterplot of MME and MHW summaries
+# Scatterplot of MME and MHW count summaries
 scatter_MME_MHW_site <- site_MME_MHW_summary %>% 
+  na.omit() %>% 
   pivot_longer(count_MHW:icum) %>% 
   ggplot(aes(x = value, y = count_MME)) +
   geom_point(aes(colour = Ecoregion)) +
   geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
   labs(y = "MME count per site/year", x = NULL,
-       title = "MME per site and year compared to MHW metrics (JJASON)") +
+       title = "MME count per site and year compared to MHW metrics (JJASON)") +
   facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
   theme(legend.position = "bottom", 
         strip.placement = "outside", strip.background = element_blank())
 scatter_MME_MHW_site
 
+# Scatterplot of MME and MHW damage summaries
+scatter_MME_MHW_site_dam <- site_MME_MHW_summary %>% 
+  na.omit() %>% 
+  pivot_longer(count_MHW:icum) %>% 
+  ggplot(aes(x = value, y = `Damaged percentage`)) +
+  geom_point(aes(colour = Ecoregion)) +
+  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
+  labs(y = "MME damage per site/year", x = NULL,
+       title = "MME damage per site and year compared to MHW metrics (JJASON)") +
+  facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
+  theme(legend.position = "bottom", 
+        strip.placement = "outside", strip.background = element_blank())
+scatter_MME_MHW_site_dam
+
+# Scatterplot of MME and MHW count summaries by ecoregion
 scatter_MME_MHW_ecoregion <- site_MME_MHW_summary %>% 
+  na.omit() %>% 
   group_by(Ecoregion, year) %>% 
   summarise(`Damaged percentage` = mean(`Damaged percentage`),
             count_MME_sum = sum(count_MME),
@@ -1199,21 +1219,45 @@ scatter_MME_MHW_ecoregion <- site_MME_MHW_summary %>%
             count_MHW_sum = sum(count_MHW),
             # count_MHW_mean = mean(count_MHW),
             duration = mean(duration),
-            imean = mean(imean),
+            # imean = mean(imean),
             icum = mean(icum), .groups = "drop") %>% 
   pivot_longer(count_MHW_sum:icum) %>% 
   ggplot(aes(x = value, y = count_MME_sum)) +
   geom_point(aes(colour = Ecoregion)) +
   geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
   labs(y = "MME count per ecoregion/year", x = NULL,
-       title = "MME per ecoregion and year compared to MHW metrics (JJASON)") +
+       title = "MME count per ecoregion and year compared to MHW metrics (JJASON)") +
   facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
   theme(legend.position = "bottom", 
         strip.placement = "outside", strip.background = element_blank())
 scatter_MME_MHW_ecoregion
 
-scatter_MME_MHW <- ggpubr::ggarrange(scatter_MME_MHW_site, scatter_MME_MHW_ecoregion, 
-                                     ncol = 2, nrow = 1, common.legend = T, legend = "bottom")
+# Scatterplot of MME and MHW damage summaries by ecoregion
+scatter_MME_MHW_ecoregion_dam <- site_MME_MHW_summary %>% 
+  na.omit() %>% 
+  group_by(Ecoregion, year) %>% 
+  summarise(`Damaged percentage` = mean(`Damaged percentage`),
+            count_MME_sum = sum(count_MME),
+            count_MME_mean = mean(count_MME),
+            count_MHW_sum = sum(count_MHW),
+            # count_MHW_mean = mean(count_MHW),
+            duration = mean(duration),
+            # imean = mean(imean),
+            icum = mean(icum), .groups = "drop") %>% 
+  pivot_longer(count_MHW_sum:icum) %>% 
+  ggplot(aes(x = value, y = `Damaged percentage`)) +
+  geom_point(aes(colour = Ecoregion)) +
+  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
+  labs(y = "MME damage (%) per ecoregion/year", x = NULL,
+       title = "MME damage per ecoregion and year compared to MHW metrics (JJASON)") +
+  facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
+  theme(legend.position = "bottom", 
+        strip.placement = "outside", strip.background = element_blank())
+scatter_MME_MHW_ecoregion_dam
+
+scatter_MME_MHW <- ggpubr::ggarrange(scatter_MME_MHW_site, scatter_MME_MHW_site_dam,
+                                     scatter_MME_MHW_ecoregion, scatter_MME_MHW_ecoregion_dam, 
+                                     ncol = 2, nrow = 2, align = "hv", common.legend = T, legend = "bottom")
 ggsave("figures/scatter_MME_MHW.png", height = 6, width = 14)
 
 
@@ -1318,7 +1362,7 @@ bar_dur <- ecoregion_MME_MHW %>%
            width = 1) +
   geom_label(aes(label = count)) +
   scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
-  facet_wrap(~region) +
+  facet_wrap(~Ecoregion) +
   scale_y_continuous(limits = c(0, 105), breaks = c(25, 50, 75, 100)) +
   scale_x_continuous(breaks = c(2015, 2017, 2019)) +
   coord_cartesian(expand = F) +
@@ -1336,7 +1380,7 @@ bar_dur <- ecoregion_MME_MHW %>%
         legend.key.width = unit(1, "cm"),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 12))
-# bar_dur
+bar_dur
 ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
 
 
