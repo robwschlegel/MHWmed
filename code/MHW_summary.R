@@ -1332,7 +1332,7 @@ site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 mme_points <- mme %>% 
   filter(Species != "Pinna nobilis",
          `Damaged qualitative` != "No",
-         `Upper Depth` <= 15,
+         # `Upper Depth` <= 15,
          EvenStart %in% c("Summer", "Autumn"))
 
 # Complete region/year grid
@@ -1358,7 +1358,7 @@ ecoregion_MME_MHW <- site_MME_MHW_summary %>%
             duration = mean(duration, na.rm = T),
             # imean = mean(imean),
             icum = mean(icum, na.rm = T), .groups = "drop") %>% 
-  # left_join(mme_labels, by = c("year", "Ecoregion")) %>% 
+  left_join(mme_labels, by = c("year", "Ecoregion")) %>%
   replace(is.na(.), 0)
 
 # Create a whole Med summary
@@ -1375,7 +1375,8 @@ ecoregion_MME_MHW_all <- rbind(ecoregion_MME_MHW, ecoregion_MME_MHW_med) %>%
                                        "Alboran Sea", "Northwestern Mediterranean", 
                                        "Southwestern Mediterranean", "Adriatic Sea",
                                        "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
-                                       "Aegean Sea", "Levantine Sea")))
+                                       "Aegean Sea", "Levantine Sea")),
+         count = round(count))
 
 # Barplot of durations
 bar_dur <- ecoregion_MME_MHW_all %>% 
@@ -1387,7 +1388,7 @@ bar_dur <- ecoregion_MME_MHW_all %>%
            position = "dodge",
            # position = position_stack(reverse = TRUE), 
            width = 1) +
-  geom_label(aes(label = count_MME_sum)) +
+  geom_label(aes(label = count)) +
   scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
   facet_wrap(~Ecoregion) +
   scale_y_continuous(limits = c(0, 105), breaks = c(25, 50, 75, 100)) +
