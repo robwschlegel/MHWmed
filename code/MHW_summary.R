@@ -950,7 +950,6 @@ load("data/MHW_cat_region.RData")
 # save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
 load("data/MHW_cat_summary_annual.RData")
 
-
 # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
 # MHW_cat_first_annual_JJASON <- MHW_cat_pixel_annual_JJASON %>%
 #   group_by(year, category) %>%
@@ -1132,11 +1131,19 @@ anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum, anom_plot_mme, anom
 ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 
 
-# SST meta-data -----------------------------------------------------------
+# MME vs MHW pixels -------------------------------------------------------
 
 # Need to create a spreadsheet that shows which SST pixels are paired to which MME records
 # MME_ID, lon_sst, lat_sst, lon_mme, lat_mme, distance
 # Also have a column for MHW days and cumulative intensity for that year for JJASON
+
+# Scale the figures so that it is the prop for the pixels in the region
+# Also look at scatterplot by separating out the low, mid, high impact MME
+# Also do a comparison of all depths vs top 15
+
+# Create another scatterplot showing when no MME are recorded vs when they are
+# Use size to show count, and colour to show quality of impact
+# Get a curved line in there that shows how the yes and no values can be separated
 
 # Match pixels
 lon_lat_match <- grid_match(distinct(dplyr::select(mme, lon, lat)), distinct(dplyr::select(med_regions, lon, lat))) %>% 
@@ -1325,6 +1332,8 @@ ggsave("figures/scatter_MME_MHW.png", height = 6, width = 14)
 # All of this only per 3 month season step
 # Then do the same figures for areas with lot's of MME records
 
+# Show this for all records with only the top 15 m
+
 # Requires: site_MME_MHW_summary
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 
@@ -1431,4 +1440,6 @@ ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
 
 # Time series barplots per site will be good to show as back up
 # But instead of showing MHW time series, show the occurrence/days/icum as bars per season with MME
+
+# Consider allowing for a minimum limit of MMEs in a region etc. before including it in the stats
 
