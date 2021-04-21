@@ -1,30 +1,6 @@
 # code/MHW_summary.R
 # This script creates annual and total summaries from the MHW Med results
 
-# Notes 2021/02/11
-# The mass mortality events (MMEs) are recorded within a season
-# So the exact days/weeks/months are not available
-# But this is not a huge issue as there will always be a time lag of some
-# sort between when the MHWs occur and the MMEs
-# So don't plan to link the months up exactly
-# Create time series plots of MHW metrics per ecoregion and overlay MMEs as fat rug points
-# Remember that the purpose of this is to relate the evolution of the MMEs in time
-# due to the increases in MHWs
-# Create stacked barplots that show how much of a MHW metric (e.g. duration)
-# over the course of a year was due to events in the warm months vs not
-# Could be interesting to see that once a link can be shown between some MMHW and MME,
-# to look at the times when these same MHWs occur without an MME having been observed
-# This may show when an MME occurred but wasn't observed
-# But remember that we are likely not going to solve the mismatch between MHW and MME
-# Stick to the main message, which is that MMEs are increasing, 
-# and so are MHWs, and the two must be linked
-# A multivariate analysis of MHW metrics and MMEs may be a way forward
-# The current thinking is to treat 2015-19 as one unit of time
-# and not to try to disentangle the individual years
-# That can be done in a follow up paper
-
-# Show the MME rug plot bits by colour for different taxa
-
 
 # Setup -------------------------------------------------------------------
 
@@ -253,14 +229,37 @@ cat_pixel_calc <- function(file_name){
   return(MHW_cat_pixel)
 }
 
+# Function for calculating stats for each individual year
+cat_pixel_annual_calc <- function(sub_months = seq(1, 12)){
+  cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>%
+    filter(month %in% sub_months) %>% 
+    dplyr::select(lon, lat, year, duration, cum_int:`IV Extreme`) %>%
+    group_by(lon, lat, year) %>%
+    summarise_all(sum)
+  gc()
+  cat_pixel_annual <- MHW_cat_pixel_monthly %>%
+    filter(month %in% sub_months) %>% 
+    group_by(lon, lat, year) %>%
+    filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>%
+    filter(t == min(t)) %>%
+    dplyr::select(lon:category, max_int) %>%
+    unique() %>%
+    left_join(cat_pixel_annual_sum, by = c("lon", "lat", "year")) %>%
+    dplyr::rename(duration_max = duration.x,
+                  duration_sum = duration.y)
+  gc()
+  return(cat_pixel_annual)
+}
+
 # Function for calculating stats for each individual day
-cat_daily_calc <- function(file_name){
+cat_daily_calc <- function(file_name, sub_months = seq(1, 12)){
   
   # Load data
   MHW_cat <- load_cat_daily(file_name)
   
   # Calculate daily MHW occurrence across all pixels
   MHW_cat_daily <- MHW_cat %>% 
+    filter(as.numeric(month) %in% sub_months) %>% 
     group_by(year, t, category) %>%
     summarise(cat_n = n(), .groups = "drop") %>% 
     right_join(full_daily_grid, by = c("year", "t", "category")) %>% 
@@ -270,6 +269,44 @@ cat_daily_calc <- function(file_name){
   # Clean up and exit
   rm(MHW_cat); gc()
   return(MHW_cat_daily)
+}
+
+# Function for calculating summary stats
+cat_summary_calc <- function(df_pixel, df_daily, JJASON = F){
+  
+  # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
+  cat_first_annual <- df_pixel %>%
+    group_by(t, year, category) %>%
+    summarise(first_n = n(), .groups = "drop") %>%
+    right_join(full_daily_grid, by = c("t", "year", "category")) %>%
+    arrange(year, t, category) %>%
+    mutate(first_n = ifelse(is.na(first_n), 0, first_n),
+           first_n_prop = round(first_n/nrow(med_sea_coords), 4)) %>%
+    # arrange(t, category) %>%
+    group_by(year, category) %>%
+    mutate(first_n_cum = cumsum(first_n),
+           first_n_cum_prop = round(first_n_cum/nrow(med_sea_coords), 4)) %>%
+    ungroup()
+  
+  # The count of categories of MHWs happening on a given day, and cumulatively throughout the year
+  cat_summary_annual <- df_daily %>%
+    arrange(year, t, category) %>%
+    group_by(t, year, category) %>%
+    summarise(cat_n = sum(cat_n), .groups = "keep") %>%
+    mutate(cat_n_prop = round(cat_n/nrow(med_sea_coords), 4)) %>%
+    group_by(year, category) %>%
+    mutate(cat_n_cum = cumsum(cat_n),
+           cat_n_cum_prop = round(cat_n_cum/nrow(med_sea_coords), 4)) %>%
+    right_join(cat_first_annual, by = c("t", "year", "category"))
+  
+  # Filter out days for JJASON
+  if(JJASON){
+    cat_summary_annual <- filter(cat_summary_annual, 
+                                 lubridate::month(t) >= 6,
+                                 lubridate::month(t) <= 11)
+  }
+  
+  return(cat_summary_annual)
 }
 
 # An in between function to help with RAM use
@@ -296,7 +333,7 @@ region_proc <- function(file_name, region_coords){
     right_join(distinct(full_monthly_grid[,1:2]), by = c("year", "month")) %>% 
     replace(is.na(.), 0)
   
-  # Count of category days per year, month, region
+  # Count of category days per year, month, Ecoregion
   # Don't calculate values that account for pixels with NO MHW
   # We only want to know about temperature anomalies from MHWs
   cat_count <- cat_daily %>% 
@@ -551,86 +588,103 @@ annual_summary_fig <- function(chosen_year){
 }
 
 # total summary figure
-total_summary_fig <- function(){
+total_summary_fig <- function(df){
+  
+  # Detect JJASON period
+  if(max(lubridate::month(df$t)) == 12){
+    JJASON_bit <- ""
+    month_sub <- 12
+    day_sub <- 31
+    dd <- 1
+  }  else {
+    JJASON_bit <- " (JJASON)"
+    month_sub <- 11
+    day_sub <- 30
+    dd <- 2
+  }
+  
+  # Load OISST annual global MHW summaries
+  OISST_global <- readRDS("data/OISST_cat_daily_1992-2018_total.Rds") %>% 
+    group_by(t) %>% 
+    mutate(cat_n_prop_stack = cumsum(cat_n_prop),
+           first_n_cum_prop_stack = cumsum(first_n_cum_prop))
   
   # Total summary
   # Create mean values of daily count
-  cat_daily_mean <- MHW_cat_summary_annual %>%
+  cat_daily_mean <- df %>%
     group_by(year, category) %>%
     summarise(cat_n_prop_mean = mean(cat_n_prop, na.rm = T),
               cat_n_cum_prop = max(cat_n_cum_prop, na.rm = T), .groups = "drop")
   
   # Extract only values from December 31st
-  cat_daily <- MHW_cat_first_annual %>%
-    filter(lubridate::month(t) == 12, lubridate::day(t) == 31) %>%
-    left_join(cat_daily_mean, by = c("year", "category"))
+  cat_daily <- df %>%
+    group_by(year, category) %>%
+    filter(lubridate::month(t) == month_sub, lubridate::day(t) == day_sub)
   
   # Stacked barplot of global daily count of MHWs by category
-  fig_count_historic <- ggplot(cat_daily, aes(x = year, y = cat_n_prop_mean)) +
+  fig_count_historic <- ggplot(cat_daily_mean, aes(x = year, y = cat_n_cum_prop)) +
     geom_bar(aes(fill = category), stat = "identity", show.legend = T,
              position = position_stack(reverse = TRUE), width = 1) +
+    geom_line(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, colour = category), 
+              linetype = "dotted", show.legend = F) +
+    geom_point(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, fill = category), 
+               shape = 21, show.legend = F) +
     scale_fill_manual("Category", values = MHW_colours) +
-    scale_y_continuous(limits = c(0, 1),
-                       breaks = seq(0.2, 0.8, length.out = 4),
-                       labels = paste0(seq(20, 80, by = 20), "%")) +
-    scale_x_continuous(breaks = seq(1982, 2019, 5)) +
-    labs(y = "Daily MHWs\n(annual average)", x = NULL) +
+    scale_colour_manual("Category", values = MHW_colours) +
+    scale_y_continuous(limits = c(0, 80),
+                       breaks = seq(20, 60, length.out = 3),
+                       sec.axis = sec_axis(name = "Average daily MHW coverage", trans = ~ . + 0,
+                                           breaks = c(18.25, 36.5, 54.75, 73),
+                                           labels = c("5%", "10%", "15%", "20%"))) +
+    scale_x_continuous(breaks = seq(1984, 2019, 7)) +
+    guides(pattern_colour = FALSE, colour = FALSE) +
+    labs(y = "Average MHW days", x = NULL) +
     coord_cartesian(expand = F) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
-          axis.title = element_text(size = 14),
-          axis.text = element_text(size = 12),
-          legend.title = element_text(size = 18),
-          legend.text = element_text(size = 16))
+          axis.title = element_text(size = 12),
+          axis.text = element_text(size = 10),
+          legend.title = element_text(size = 14),
+          legend.text = element_text(size = 12))
   # fig_count_historic
   
   # Stacked barplot of cumulative percent of ocean affected by MHWs
   fig_cum_historic <- ggplot(cat_daily, aes(x = year, y = first_n_cum_prop)) +
     geom_bar(aes(fill = category), stat = "identity", show.legend = T,
              position = position_stack(reverse = TRUE), width = 1) +
+    geom_line(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, colour = category), 
+              linetype = "dotted", show.legend = F) +
+    geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, fill = category), 
+               shape = 21, show.legend = F) +
     scale_fill_manual("Category", values = MHW_colours) +
-    scale_y_continuous(limits = c(0, 1),
+    scale_colour_manual("Category", values = MHW_colours) +
+    scale_y_continuous(position = "right", 
+                       limits = c(0, 1),
                        breaks = seq(0.2, 0.8, length.out = 4),
                        labels = paste0(seq(20, 80, by = 20), "%")) +
-    scale_x_continuous(breaks = seq(1982, 2019, 5)) +
-    labs(y = "Top MHW category\n(annual total)", x = NULL) +
+    scale_x_continuous(breaks = seq(1984, 2019, 7)) +
+    labs(y = "Total annual MHW coverage", x = NULL) +
     coord_cartesian(expand = F) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
-          axis.title = element_text(size = 14),
-          axis.text = element_text(size = 12),
-          legend.title = element_text(size = 18),
-          legend.text = element_text(size = 16))
+          axis.title = element_text(size = 12),
+          axis.text = element_text(size = 10),
+          legend.position = "none",
+          legend.title = element_text(size = 14),
+          legend.text = element_text(size = 12))
   # fig_cum_historic
-  
-  # Stacked barplot of average cumulative MHW days per pixel
-  fig_prop_historic <- ggplot(cat_daily, aes(x = year, y = cat_n_cum_prop)) +
-    geom_bar(aes(fill = category), stat = "identity", show.legend = T,
-             position = position_stack(reverse = TRUE), width = 1) +
-    scale_fill_manual("Category", values = MHW_colours) +
-    scale_y_continuous(limits = c(0, 80),
-                       breaks = seq(20, 60, length.out = 3)) +
-    scale_x_continuous(breaks = seq(1982, 2019, 5)) +
-    labs(y = "Average MHW days\n(annual max)", x = NULL) +
-    coord_cartesian(expand = F) +
-    theme(panel.border = element_rect(colour = "black", fill = NA),
-          axis.title = element_text(size = 14),
-          axis.text = element_text(size = 12),
-          legend.title = element_text(size = 18),
-          legend.text = element_text(size = 16))
-  # fig_prop_historic
   
   # Create the figure title
   min_year <- min(cat_daily_mean$year)
   max_year <- max(cat_daily_mean$year)
-  fig_title <- paste0("Mediterranean MHW categories summary: ",min_year," - ", max_year, 
-                      "\nNOAA Med SST ~4km; Climatogy period: 1982-2011")
+  fig_title <- paste0("Mediterranean MHW categories summary: ",min_year," - ", max_year, JJASON_bit,
+                      "\nCMEMS Med SST ~4km; Climatogy period: 1982-2011")
   
   # Stick them together and save
-  fig_ALL_historic <- ggpubr::ggarrange(fig_count_historic, fig_cum_historic, fig_prop_historic,
-                                        ncol = 3, align = "hv", labels = c("A)", "B)", "C)"), hjust = -0.1,
+  fig_ALL_historic <- ggpubr::ggarrange(fig_count_historic, fig_cum_historic,
+                                        ncol = 2, align = "hv", labels = c("A)", "B)"), hjust = -0.1,
                                         font.label = list(size = 14), common.legend = T, legend = "bottom")
-  fig_ALL_cap <- grid::textGrob(fig_title, x = 0.01, just = "left", gp = grid::gpar(fontsize = 20))
+  fig_ALL_cap <- grid::textGrob(fig_title, x = 0.01, just = "left", gp = grid::gpar(fontsize = 18))
   fig_ALL_full <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL_historic, heights = c(0.25, 1), nrow = 2)
-  ggsave(fig_ALL_full, filename = "figures/MHW_cat_historic.png", height = 4.25, width = 12)
+  # ggsave(fig_ALL_full, filename = "figures/MHW_cat_historic.png", height = 4.25, width = 12)
 }
 
 # Function to create monthly maps of warm season 2015-2019
@@ -835,61 +889,6 @@ MEOW_label_coords <- MEOW %>%
   unnest(coords)
 
 
-# Annual summaries --------------------------------------------------------
-
-# The occurrences per month per pixel
-# doParallel::registerDoParallel(cores = 15)
-# system.time(
-# MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
-# ) # ~15 minutes on 7 cores, 344 seconds on 15 cores
-# save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
-# load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
-
-# The occurrences per year per pixel
-# MHW_cat_pixel_annual_sum <- MHW_cat_pixel_monthly %>%
-#   dplyr::select(lon, lat, year, duration, cum_int:`IV Extreme`) %>%
-#   group_by(lon, lat, year) %>%
-#   summarise_all(sum)
-# gc()
-# MHW_cat_pixel_annual <- MHW_cat_pixel_monthly %>%
-#   group_by(lon, lat, year) %>%
-#   filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>%
-#   filter(t == min(t)) %>%
-#   dplyr::select(lon:category, max_int) %>%
-#   unique() %>%
-#   left_join(MHW_cat_pixel_annual_sum, by = c("lon", "lat", "year")) %>% 
-#   dplyr::rename(duration_max = duration.x,
-#                 duration_sum = duration.y)
-# rm(MHW_cat_pixel_annual_sum); gc()
-# save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
-load("data/MHW_cat_pixel_annual.RData")
-
-# The occurrences per year per pixel JJASON
-# MHW_cat_pixel_annual_JJASON <- MHW_cat_pixel_monthly %>%
-#   filter(month %in% lubridate::month(seq(6, 11), label = F, abb = T)) %>%
-#     group_by(lon, lat, year) %>%
-#     summarise(duration = sum(duration, na.rm = T),
-#               category = max(as.integer(category), na.rm = T),
-#               max_int = max(max_int, na.rm = T),
-#               cum_int = sum(cum_int, na.rm = T),
-#               `I Moderate` = sum(`I Moderate`, na.rm = T),
-#               `II Strong` = sum(`II Strong`, na.rm = T),
-#               `III Severe` = sum(`III Severe`, na.rm = T),
-#               `IV Extreme` = sum(`IV Extreme`, na.rm = T), .groups = "drop") %>%
-#     mutate(category = factor(category, levels = c(1, 2, 3, 4),
-#                              labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme")))
-# gc()
-# save(MHW_cat_pixel_annual_JJASON, file = "data/MHW_cat_pixel_annual_JJASON.RData")
-load("data/MHW_cat_pixel_annual_JJASON.RData")
-
-# The occurrences per day
-# system.time(
-# MHW_cat_daily_annual <- plyr::ldply(res_files, cat_daily_calc, .parallel = T)
-# ) # 258 seconds on 7 cores
-# save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
-load("data/MHW_cat_daily_annual.RData")
-
-
 # Ecoregion summaries -----------------------------------------------------
 
 # NB: Do not run in parallel
@@ -916,73 +915,63 @@ load("data/MHW_cat_region.RData")
 # plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
 
 
+# Annual summaries --------------------------------------------------------
+
+# The occurrences per month per pixel
+# doParallel::registerDoParallel(cores = 15)
+# system.time(
+# MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
+# ) # ~15 minutes on 7 cores, 344 seconds on 15 cores
+# save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
+load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
+
+# The occurrences per year per pixel
+## NB: Requires MHW_cat_pixel_monthly
+# MHW_cat_pixel_annual <- cat_pixel_annual_calc()
+# save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
+load("data/MHW_cat_pixel_annual.RData")
+
+# The occurrences per year per pixel JJASON
+## NB: Requires MHW_cat_pixel_monthly
+# system.time(
+# MHW_cat_pixel_annual_JJASON <- cat_pixel_annual_calc(sub_months = seq(6, 11))
+# ) # 300 seconds
+# save(MHW_cat_pixel_annual_JJASON, file = "data/MHW_cat_pixel_annual_JJASON.RData")
+load("data/MHW_cat_pixel_annual_JJASON.RData")
+
+# The occurrences per day all months
+# registerDoParallel(cores = 15)
+# system.time(
+# MHW_cat_daily_annual <- plyr::ldply(res_files, cat_daily_calc, .parallel = T)
+# ) # 227 seconds on 15 cores
+# save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
+load("data/MHW_cat_daily_annual.RData")
+
+# The occurrences per day JJASON
+# system.time(
+# MHW_cat_daily_annual_JJASON <- plyr::ldply(res_files, cat_daily_calc, .parallel = T, sub_months = seq(6, 11))
+# ) # 230 seconds on 15 cores
+# save(MHW_cat_daily_annual_JJASON, file = "data/MHW_cat_daily_annual_JJASON.RData")
+load("data/MHW_cat_daily_annual_JJASON.RData")
+
+
 # Total summaries ---------------------------------------------------------
 
-## TODO: Change this for only the JJASON period.
-## Also update the panels to only two, with one having a double y-axis
-## Overlay the values from the global averages so that a reader can visually compare what is happening in the Med vs. global
-## This could be done with overlaid dashed lines per category
-
 # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
-# MHW_cat_first_annual <- MHW_cat_pixel_annual %>%
-#   group_by(t, year, category) %>%
-#   summarise(first_n = n(), .groups = "drop") %>% 
-#   right_join(full_daily_grid, by = c("t", "year", "category")) %>%
-#   arrange(year, t, category) %>% 
-#   mutate(first_n = ifelse(is.na(first_n), 0, first_n),
-#          first_n_prop = round(first_n/nrow(med_sea_coords), 4)) %>% 
-#   # arrange(t, category) %>% 
-#   group_by(year, category) %>%
-#   mutate(first_n_cum = cumsum(first_n),
-#          first_n_cum_prop = round(first_n_cum/nrow(med_sea_coords), 4)) %>% 
-#   ungroup()
-
-# The count of categories of MHWs happening on a given day, and cumulatively throughout the year
-# MHW_cat_summary_annual <- MHW_cat_daily_annual %>% 
-#   arrange(year, t, category) %>% 
-#   group_by(t, year, category) %>% 
-#   summarise(cat_n = sum(cat_n), .groups = "keep") %>% 
-#   mutate(cat_n_prop = round(cat_n/nrow(med_sea_coords), 4)) %>% 
-#   group_by(year, category) %>%
-#   mutate(cat_n_cum = cumsum(cat_n),
-#          cat_n_cum_prop = round(cat_n_cum/nrow(med_sea_coords), 4)) %>% 
-#   right_join(MHW_cat_first_annual, by = c("t", "year", "category"))
-# save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
+MHW_cat_summary_annual <- cat_summary_calc(MHW_cat_pixel_annual, MHW_cat_daily_annual)
+save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
 load("data/MHW_cat_summary_annual.RData")
 
-# The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
-# MHW_cat_first_annual_JJASON <- MHW_cat_pixel_annual_JJASON %>%
-#   group_by(year, category) %>%
-#   summarise(first_n = n(), .groups = "drop") %>%
-#   right_join(full_annual_grid, by = c("year", "category")) %>%
-#   arrange(year, category) %>%
-#   mutate(first_n = ifelse(is.na(first_n), 0, first_n),
-#          first_n_prop = round(first_n/nrow(med_sea_coords), 4)) %>%
-#   # arrange(t, category) %>%
-#   group_by(year, category) %>%
-#   mutate(first_n_cum = cumsum(first_n),
-#          first_n_cum_prop = round(first_n_cum/nrow(med_sea_coords), 4)) %>%
-#   ungroup()
-
-# The count of categories of MHWs happening on a given day, and cumulatively throughout the year
-# MHW_cat_summary_annual_JJASON <- MHW_cat_pixel_annual_JJASON %>%
-#   dplyr::select(lon:year, `I Moderate`:`IV Extreme`) %>% 
-#   pivot_longer(`I Moderate`:`IV Extreme`, names_to = "category", values_to = "cat_n") %>% 
-#   group_by(year, category) %>%
-#   summarise(cat_n = sum(cat_n), .groups = "keep") %>%
-#   mutate(cat_n_prop = round(cat_n/nrow(med_sea_coords), 4)) %>%
-#   group_by(year, category) %>%
-#   mutate(cat_n_cum = cumsum(cat_n),
-#          cat_n_cum_prop = round(cat_n_cum/nrow(med_sea_coords), 4)) %>%
-#   right_join(MHW_cat_first_annual_JJASON, by = c("year", "category"))
-# save(MHW_cat_summary_annual_JJASON, file = "data/MHW_cat_summary_annual_JJASON.RData")
+# Same as above but for JJASON
+MHW_cat_summary_annual_JJASON <- cat_summary_calc(MHW_cat_pixel_annual_JJASON, MHW_cat_daily_annual_JJASON, JJASON = T)
+save(MHW_cat_summary_annual_JJASON, file = "data/MHW_cat_summary_annual_JJASON.RData")
 load("data/MHW_cat_summary_annual_JJASON.RData")
 
 
 # Summary figures ---------------------------------------------------------
 
-# NB: These require objects to be in the environment that are added by the above code
-# They are not standalone functions...
+## NB: These require objects to be in the environment that are added by the above code
+# MHW_cat_summary_annual, MHW_cat_pixel_annual
 
 # Create annual summary figures
 # NB: This is very RAM heavy
@@ -990,7 +979,10 @@ load("data/MHW_cat_summary_annual_JJASON.RData")
 # plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
-total_summary_fig()
+total_summary <- total_summary_fig(MHW_cat_summary_annual)
+ggsave("figures/MHW_cat_historic.png", total_summary, height = 4.25, width = 8)
+total_summary_JJASON <- total_summary_fig(MHW_cat_summary_annual_JJASON)
+ggsave("figures/MHW_cat_historic_JJASON.png", total_summary_JJASON, height = 4.25, width = 8)
 
 
 # Per pixel maps with MME -------------------------------------------------
@@ -998,12 +990,12 @@ total_summary_fig()
 # Requires: MHW_cat_pixel_monthly.RData and MHW_cat_region.RData
 
 # Per pixel maps
-map_pixel_duration <- monthly_map_pixel("duration", annual = T)
-ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 7, width = 20)
-map_pixel_category <- monthly_map_pixel("category", annual = T)
-ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 7, width = 20)
-map_pixel_cum_int <- monthly_map_pixel("cum_int", annual = T)
-ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 20)
+# map_pixel_duration <- monthly_map_pixel("duration", annual = T)
+# ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 7, width = 20)
+# map_pixel_category <- monthly_map_pixel("category", annual = T)
+# ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 7, width = 20)
+# map_pixel_cum_int <- monthly_map_pixel("cum_int", annual = T)
+# ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 20)
 
 
 # Single summary map ------------------------------------------------------
@@ -1442,4 +1434,6 @@ ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
 # But instead of showing MHW time series, show the occurrence/days/icum as bars per season with MME
 
 # Consider allowing for a minimum limit of MMEs in a region etc. before including it in the stats
+
+# Show the MME rug plot bits by colour for different taxa
 
