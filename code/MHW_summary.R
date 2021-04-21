@@ -990,12 +990,12 @@ ggsave("figures/MHW_cat_historic_JJASON.png", total_summary_JJASON, height = 4.2
 # Requires: MHW_cat_pixel_monthly.RData and MHW_cat_region.RData
 
 # Per pixel maps
-# map_pixel_duration <- monthly_map_pixel("duration", annual = T)
-# ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 7, width = 20)
-# map_pixel_category <- monthly_map_pixel("category", annual = T)
-# ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 7, width = 20)
-# map_pixel_cum_int <- monthly_map_pixel("cum_int", annual = T)
-# ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 20)
+map_pixel_duration <- monthly_map_pixel("duration", annual = T)
+ggsave("figures/MHW_pixel_duration.png", map_pixel_duration, height = 7, width = 20)
+map_pixel_category <- monthly_map_pixel("category", annual = T)
+ggsave("figures/MHW_pixel_category.png", map_pixel_category, height = 7, width = 20)
+map_pixel_cum_int <- monthly_map_pixel("cum_int", annual = T)
+ggsave("figures/MHW_pixel_cum_int.png", map_pixel_cum_int, height = 7, width = 20)
 
 
 # Single summary map ------------------------------------------------------
@@ -1124,10 +1124,6 @@ ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 
 
 # MME vs MHW pixels -------------------------------------------------------
-
-# Need to create a spreadsheet that shows which SST pixels are paired to which MME records
-# MME_ID, lon_sst, lat_sst, lon_mme, lat_mme, distance
-# Also have a column for MHW days and cumulative intensity for that year for JJASON
 
 # Scale the figures so that it is the prop for the pixels in the region
 # Also look at scatterplot by separating out the low, mid, high impact MME
@@ -1305,6 +1301,27 @@ ggsave("figures/scatter_MME_MHW.png", height = 6, width = 14)
 # We as the experts should chose the MHW metric to show
 # Show how this metric relates to MME by species for spatial, temporal, depth ranges
 
+# A figure somehow showing areas that were monitored but did not have mortality would be interesting
+# A boxplot of some sort
+
+# Need different figures for different genus etc.
+
+# When did the highest MME occur in a year, and what did the MHW look like then
+
+# Keep it simple. Figures that are a summary of all five years.
+# The goal is to be able to show all of the info in one or two figures.
+
+# Could use alpha to show count/days of MHWs over five years and colour for mean icum
+# Like a density plot, sort of...
+# Could use alpha with histograms to show overlay of different years for MME and MHW stats
+
+# Time series barplots per site will be good to show as back up
+# But instead of showing MHW time series, show the occurrence/days/icum as bars per season with MME
+
+# Consider allowing for a minimum limit of MMEs in a region etc. before including it in the stats
+
+# Show the MME rug plot bits by colour for different taxa
+
 
 # Temporal summary figure -------------------------------------------------
 
@@ -1315,16 +1332,6 @@ ggsave("figures/scatter_MME_MHW.png", height = 6, width = 14)
 
 
 # Histograms of MME and MHW -----------------------------------------------
-
-## TODO: Use the per pixel comparison results for the ecoregion values
-## Also add a panel for the whole Med and order by West to East
-
-# Very broad patterns are what we are looking for
-# Show histograms of MHWs per ecoregions next to histograms of MME per region
-# All of this only per 3 month season step
-# Then do the same figures for areas with lot's of MME records
-
-# Show this for all records with only the top 15 m
 
 # Requires: site_MME_MHW_summary
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
@@ -1412,28 +1419,4 @@ bar_dur <- ecoregion_MME_MHW_all %>%
         strip.text = element_text(size = 12))
 bar_dur
 ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
-
-
-
-
-# A figure somehow showing areas that were monitored but did not have mortality would be interesting
-# A boxplot of some sort
-
-# Need different figures for different genus etc.
-
-# When did the highest MME occur in a year, and what did the MHW look like then
-
-# Keep it simple. Figures that are a summary of all five years.
-# The goal is to be able to show all of the info in one or two figures.
-
-# Could use alpha to show count/days of MHWs over five years and colour for mean icum
-# Like a density plot, sort of...
-# Could use alpha with histograms to show overlay of different years for MME and MHW stats
-
-# Time series barplots per site will be good to show as back up
-# But instead of showing MHW time series, show the occurrence/days/icum as bars per season with MME
-
-# Consider allowing for a minimum limit of MMEs in a region etc. before including it in the stats
-
-# Show the MME rug plot bits by colour for different taxa
 
