@@ -629,8 +629,8 @@ total_summary_fig <- function(df){
   fig_count_historic <- ggplot(cat_daily_mean, aes(x = year, y = cat_n_cum_prop)) +
     geom_bar(aes(fill = category), stat = "identity", show.legend = T,
              position = position_stack(reverse = TRUE), width = 1) +
-    geom_line(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, colour = category), 
-              linetype = "dotted", show.legend = F) +
+    # geom_line(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, colour = category), 
+              # linetype = "dotted", show.legend = F) +
     geom_point(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, fill = category), 
                shape = 21, show.legend = F) +
     scale_fill_manual("Category", values = MHW_colours) +
@@ -655,8 +655,8 @@ total_summary_fig <- function(df){
   fig_cum_historic <- ggplot(cat_daily, aes(x = year, y = first_n_cum_prop)) +
     geom_bar(aes(fill = category), stat = "identity", show.legend = T,
              position = position_stack(reverse = TRUE), width = 1) +
-    geom_line(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, colour = category), 
-              linetype = "dotted", show.legend = F) +
+    # geom_line(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, colour = category), 
+              # linetype = "dotted", show.legend = F) +
     geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, fill = category), 
                shape = 21, show.legend = F) +
     scale_fill_manual("Category", values = MHW_colours) +
@@ -1312,6 +1312,11 @@ ggsave("figures/scatter_MME_MHW.png", scatter_MME_MHW, height = 9, width = 16)
 
 # Yes vs No MME -----------------------------------------------------------
 
+# TODO: Find a way to show thresholds above which a MHW metric relates to rapid increase in MME
+# E.G. The threshold of 3 MHW vs 2 MHW
+# Scatterplots with icum for all species and global
+# Also ecoregions
+
 # Load MME MHW pairing data
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 
@@ -1328,14 +1333,15 @@ mme_reg <- mme %>%
 
 # Paramuricea clavata is perhaps the best candidate for heat stress
 mme_reg_Pcla <- mme_reg %>% 
-  filter(Species == "Paramuricea clavata")
+  filter(Species == "Paramuricea clavata")#,
+         # `Damaged qualitative` != "No")
 
 # Scatterplot of Paramuricea clavata MME vs MHW per pixel
-scatter_Pcla_pixel <- mme_reg_Pcla %>% 
+scatter_Pcla_pixel <- mme_reg %>% 
   pivot_longer(count_MHW:icum) %>% 
   ggplot(aes(x = value, y = `Damaged percentage`)) +
-  geom_point(aes(colour = `Damaged qualitative`)) +
-  geom_smooth(aes(colour = `Damaged qualitative`), method = "lm", se = F) +
+  geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
+  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
   labs(y = "MME damage (%) per pixel/year", x = NULL,
        title = "Paramuricea clavata MME damage pixel/year compared to MHW metrics (JJASON)") +
   facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
@@ -1343,7 +1349,7 @@ scatter_Pcla_pixel <- mme_reg_Pcla %>%
         strip.placement = "outside", strip.background = element_blank())
 
 # Scatterplot of Paramuricea clavata MME vs MHW per Ecoregion
-scatter_Pcla_eco <- mme_reg_Pcla %>% 
+scatter_Pcla_eco <- mme_reg %>% 
   group_by(Ecoregion, year, `Damaged qualitative`) %>% 
   summarise(`Damaged percentage` = mean(`Damaged percentage`),
             count_MME_sum = sum(count_MME),
@@ -1355,8 +1361,8 @@ scatter_Pcla_eco <- mme_reg_Pcla %>%
             icum = mean(icum), .groups = "drop") %>% 
   pivot_longer(count_MHW_sum:icum) %>% 
   ggplot(aes(x = value, y = `Damaged percentage`)) +
-  geom_point(aes(colour = `Damaged qualitative`)) +
-  geom_smooth(aes(colour = `Damaged qualitative`), method = "lm", se = F) +
+  geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
+  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
   labs(y = "MME damage (%) per Ecoregion/year", x = NULL,
        title = "Paramuricea clavata MME damage Ecoregion/year compared to MHW metrics (JJASON)") +
   facet_wrap(~name, scales = "free_x", strip.position = "bottom", nrow = 1) +
@@ -1398,7 +1404,8 @@ ggsave("figures/scatter_Pcla.png", scatter_Pcla, height = 4, width = 16)
 
 # Comparisons must be made by species
 # Gorgonians are a good starting point as they are almost certainly temperature driven MME
-# Certain species are better choices than others: Paramuricea clavata, Eunicella singularis, Eunicella cavolini, Corallium rubrum
+# Certain species are better choices than others: 
+# Paramuricea clavata, Eunicella singularis, Eunicella cavolini, Corallium rubrum
 # The first three can be grouped as necessary
 # Gorgonians tend to start dying more often near the end of summer
 # Fish are a bad choice, and Sapia
