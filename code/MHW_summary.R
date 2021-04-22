@@ -596,11 +596,13 @@ total_summary_fig <- function(df){
     month_sub <- 12
     day_sub <- 31
     dd <- 1
+    y2_labs <- c("5%", "10%", "15%", "20%")
   }  else {
     JJASON_bit <- " (JJASON)"
     month_sub <- 11
     day_sub <- 30
     dd <- 2
+    y2_labs <- c("10%", "20%", "30%", "40%")
   }
   
   # Load OISST annual global MHW summaries
@@ -635,7 +637,7 @@ total_summary_fig <- function(df){
                        breaks = seq(20, 60, length.out = 3),
                        sec.axis = sec_axis(name = "Average daily MHW coverage", trans = ~ . + 0,
                                            breaks = c(18.25, 36.5, 54.75, 73),
-                                           labels = c("5%", "10%", "15%", "20%"))) +
+                                           labels = y2_labs)) +
     scale_x_continuous(breaks = seq(1984, 2019, 7)) +
     guides(pattern_colour = FALSE, colour = FALSE) +
     labs(y = "Average MHW days", x = NULL) +
@@ -662,7 +664,7 @@ total_summary_fig <- function(df){
                        breaks = seq(0.2, 0.8, length.out = 4),
                        labels = paste0(seq(20, 80, by = 20), "%")) +
     scale_x_continuous(breaks = seq(1984, 2019, 7)) +
-    labs(y = "Total annual MHW coverage", x = NULL) +
+    labs(y = "Total MHW coverage", x = NULL) +
     coord_cartesian(expand = F) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
           axis.title = element_text(size = 12),
@@ -958,13 +960,13 @@ load("data/MHW_cat_daily_annual_JJASON.RData")
 # Total summaries ---------------------------------------------------------
 
 # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
-MHW_cat_summary_annual <- cat_summary_calc(MHW_cat_pixel_annual, MHW_cat_daily_annual)
-save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
+# MHW_cat_summary_annual <- cat_summary_calc(MHW_cat_pixel_annual, MHW_cat_daily_annual)
+# save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
 load("data/MHW_cat_summary_annual.RData")
 
 # Same as above but for JJASON
-MHW_cat_summary_annual_JJASON <- cat_summary_calc(MHW_cat_pixel_annual_JJASON, MHW_cat_daily_annual_JJASON, JJASON = T)
-save(MHW_cat_summary_annual_JJASON, file = "data/MHW_cat_summary_annual_JJASON.RData")
+# MHW_cat_summary_annual_JJASON <- cat_summary_calc(MHW_cat_pixel_annual_JJASON, MHW_cat_daily_annual_JJASON, JJASON = T)
+# save(MHW_cat_summary_annual_JJASON, file = "data/MHW_cat_summary_annual_JJASON.RData")
 load("data/MHW_cat_summary_annual_JJASON.RData")
 
 
