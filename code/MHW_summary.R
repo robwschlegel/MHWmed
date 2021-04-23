@@ -1331,48 +1331,43 @@ mme_reg <- mme %>%
   dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
                 `Damaged percentage (mean)` = `Damaged percentage.y`)
 
+# List of prime species
+spp_1 <- c("Myriapora truncata", "Pentapora fascialis", "Astroides calycularis", "Caryophyllia inornata", 
+           "Cladocora caespitosa", "Leptopsammia pruvoti")
+
+mme_reg_1 <-  mme_reg %>% 
+  filter(Species %in% spp_1)
+
 # Paramuricea clavata is perhaps the best candidate for heat stress
 mme_reg_Pcla <- mme_reg %>% 
   filter(Species == "Paramuricea clavata")#,
          # `Damaged qualitative` != "No")
 
+# Convenience function
+species_scatter <- function(df, spp_title){
+  df %>% 
+    pivot_longer(duration:icum) %>% 
+    ggplot(aes(x = value, y = `Damaged percentage`)) +
+    geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
+    geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
+    labs(y = "MME damage (%) per pixel/year", x = NULL, shape = "Year",
+         title = paste0(spp_title, "MME damage vs MHW metrics (JJASON)")) +
+    facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
+    theme(legend.position = "bottom", legend.box = "vertical",
+          strip.placement = "outside", strip.background = element_blank())
+}
+
 # Scatterplot of Paramuricea clavata MME vs MHW per pixel
-scatter_Pcla_pixel <- mme_reg %>% 
-  pivot_longer(count_MHW:icum) %>% 
-  ggplot(aes(x = value, y = `Damaged percentage`)) +
-  geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
-  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
-  labs(y = "MME damage (%) per pixel/year", x = NULL,
-       title = "Paramuricea clavata MME damage pixel/year compared to MHW metrics (JJASON)") +
-  facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
-  theme(legend.position = "bottom", 
-        strip.placement = "outside", strip.background = element_blank())
+scatter_Pcla <- species_scatter(mme_reg_Pcla, "Paramuricea clavata ")
+ggsave("figures/scatter_Pcla.png", scatter_Pcla, height = 6, width = 9)
 
-# Scatterplot of Paramuricea clavata MME vs MHW per Ecoregion
-scatter_Pcla_eco <- mme_reg %>% 
-  group_by(Ecoregion, year, `Damaged qualitative`) %>% 
-  summarise(`Damaged percentage` = mean(`Damaged percentage`),
-            count_MME_sum = sum(count_MME),
-            count_MME_mean = mean(count_MME),
-            count_MHW_sum = sum(count_MHW),
-            count_MHW_mean = mean(count_MHW),
-            duration = mean(duration),
-            # imean = mean(imean),
-            icum = mean(icum), .groups = "drop") %>% 
-  pivot_longer(count_MHW_sum:icum) %>% 
-  ggplot(aes(x = value, y = `Damaged percentage`)) +
-  geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
-  geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
-  labs(y = "MME damage (%) per Ecoregion/year", x = NULL,
-       title = "Paramuricea clavata MME damage Ecoregion/year compared to MHW metrics (JJASON)") +
-  facet_wrap(~name, scales = "free_x", strip.position = "bottom", nrow = 1) +
-  theme(legend.position = "bottom", 
-        strip.placement = "outside", strip.background = element_blank())
+# Scatterplot for group 1 species
+scatter_spp_1 <- species_scatter(mme_reg_1, "Group 1 species ")
+ggsave("figures/scatter_spp_1.png", scatter_spp_1, height = 6, width = 9)
 
-# Combine and save
-scatter_Pcla <- ggpubr::ggarrange(scatter_Pcla_pixel, scatter_Pcla_eco,
-                                  ncol = 2, nrow = 1, align = "hv", common.legend = T, legend = "bottom")
-ggsave("figures/scatter_Pcla.png", scatter_Pcla, height = 4, width = 16)
+# Scatterplot for all species
+scatter_spp_all <- species_scatter(mme_reg, "All species ")
+ggsave("figures/scatter_spp_all.png", scatter_spp_all, height = 6, width = 9)
 
 
 # Spatial MME vs MHW maps -------------------------------------------------
