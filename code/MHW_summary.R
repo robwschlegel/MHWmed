@@ -1316,6 +1316,7 @@ ggsave("figures/scatter_MME_MHW.png", scatter_MME_MHW, height = 9, width = 16)
 # E.G. The threshold of 3 MHW vs 2 MHW
 # Scatterplots with icum for all species and global
 # Also ecoregions
+# Have linear model lines that show only data points from the upper 15 m
 
 # Load MME MHW pairing data
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
