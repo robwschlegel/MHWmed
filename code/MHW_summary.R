@@ -1126,9 +1126,9 @@ anom_plot_mme_no <- med_base +
 # anom_plot_mme_no
 
 # Combine and save
-anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum, anom_plot_mme, anom_plot_mme_no,
-                              ncol = 2, nrow = 2, align = "hv")
-ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
+anom_all <- ggpubr::ggarrange(anom_plot_dur, anom_plot_icum,# anom_plot_mme, anom_plot_mme_no,
+                              ncol = 2, nrow = 1, align = "hv")
+ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 8, width = 22)
 
 
 # MME vs MHW pixels -------------------------------------------------------
