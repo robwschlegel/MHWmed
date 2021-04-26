@@ -1012,14 +1012,14 @@ load("data/MHW_cat_pixel_annual_JJASON.RData")
 # Prepare MME points
 mme_damage <- mme %>% 
   filter(`Damaged qualitative` != "No",
-         `Upper Depth` <= 15,
+         # `Upper Depth` <= 15,
          Species != "Pinna nobilis",
          EvenStart %in% c("Summer", "Autumn")) %>% 
   group_by(lon, lat) %>% 
   summarise(count = n(), .groups = "drop")
 mme_no <- mme %>% 
   filter(`Damaged qualitative` == "No",
-         `Upper Depth` <= 15,
+         # `Upper Depth` <= 15,
          Species != "Pinna nobilis",
          EvenStart %in% c("Summer", "Autumn")) %>% 
   group_by(lon, lat) %>% 
@@ -1027,18 +1027,20 @@ mme_no <- mme %>%
 
 # Determine historic medians per pixel
 MHW_cat_pixel_JJASON_clim_median <- MHW_cat_pixel_annual_JJASON %>% 
+  ungroup() %>% 
   filter(year %in% seq(1982, 2014)) %>%
   group_by(lon, lat) %>% 
-  summarise(duration_median = median(duration, na.rm = T),
+  summarise(duration_median = median(duration_sum, na.rm = T),
             icum_median = median(cum_int, na.rm = T), .groups = "drop")
 
 # Create study period anomalies
 MHW_cat_pixel_JJASON_anom <- MHW_cat_pixel_annual_JJASON %>% 
+  ungroup() %>% 
   right_join(med_regions, by = c("lon", "lat")) %>% 
   filter(year %in% seq(2015, 2019)) %>%
   group_by(lon, lat) %>% 
-  summarise(duration = mean(duration, na.rm = T),
-            icum = mean(cum_int, na.rm = T), .groups = "drop") %>% 
+  summarise(duration = median(duration_sum, na.rm = T),
+            icum = median(cum_int, na.rm = T), .groups = "drop") %>% 
   left_join(MHW_cat_pixel_JJASON_clim_median, by = c("lon", "lat")) %>% 
   mutate(duration_anom = duration-duration_median,
          icum_anom = icum-icum_median) %>% 
@@ -1049,14 +1051,14 @@ MHW_cat_pixel_JJASON_anom <- MHW_cat_pixel_annual_JJASON %>%
 anom_plot_dur <- med_base + 
   geom_tile(data = MHW_cat_pixel_JJASON_anom, colour = NA,
             aes(fill = duration_anom, x = lon, y = lat)) +
-  geom_contour(data = MHW_cat_pixel_JJASON_anom, colour = "black",
-               aes(x = lon, y = lat, z = duration_anom), breaks = c(1)) +
+  # geom_contour(data = MHW_cat_pixel_JJASON_anom, colour = "black",
+               # aes(x = lon, y = lat, z = duration_anom), breaks = c(1)) +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
   scale_fill_gradient2(low = "white", high = "forestgreen") +
   coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
   labs(fill = "Duration (days)",
        title = "MHW Duration",
-       subtitle = "Average per year for 2015-2019 JJASON in excess of the 1982-2011 JJASON median") +
+       subtitle = "Median per year for 2015-2019 JJASON in excess of the 1982-2014 JJASON median") +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         legend.position = "bottom",
         title = element_text(size = 18),
@@ -1064,20 +1066,20 @@ anom_plot_dur <- med_base +
         legend.title = element_text(size = 18),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 16))
-anom_plot_dur
+# anom_plot_dur
 
 # Map of icum anom for JJASON
 anom_plot_icum <- med_base + 
   geom_tile(data = MHW_cat_pixel_JJASON_anom, colour = NA,
             aes(fill = icum_anom, x = lon, y = lat)) +
-  geom_contour(data = MHW_cat_pixel_JJASON_anom, colour = "black",
-               aes(x = lon, y = lat, z = icum_anom), breaks = c(1)) +
+  # geom_contour(data = MHW_cat_pixel_JJASON_anom, colour = "black",
+               # aes(x = lon, y = lat, z = icum_anom), breaks = c(1)) +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "grey70") +
   scale_fill_gradient2(low = "white", high = "darkorchid") +
   coord_sf(expand = F, xlim = c(-10, 45), ylim = c(25, 50)) +
   labs(fill = "Cumulative\nintensity (°C days)", 
        title = "MHW Cumulative Intensity",
-       subtitle = "Average per year for 2015-2019 JJASON in excess of the 1982-2011 JJASON median") +
+       subtitle = "Median per year for 2015-2019 JJASON in excess of the 1982-2014 JJASON median") +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         legend.position = "bottom",
         title = element_text(size = 18),
@@ -1085,7 +1087,7 @@ anom_plot_icum <- med_base +
         legend.title = element_text(size = 18),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 16))
-anom_plot_icum
+# anom_plot_icum
 
 # MME damage
 anom_plot_mme <- med_base + 
@@ -1131,14 +1133,6 @@ ggsave("figures/MHW_pixel_median_anom.png", anom_all, height = 16, width = 22)
 
 # MME vs MHW pixels -------------------------------------------------------
 
-# Scale the figures so that it is the prop for the pixels in the region
-# Also look at scatterplot by separating out the low, mid, high impact MME
-# Also do a comparison of all depths vs top 15
-
-# Create another scatterplot showing when no MME are recorded vs when they are
-# Use size to show count, and colour to show quality of impact
-# Get a curved line in there that shows how the yes and no values can be separated
-
 # Match pixels
 lon_lat_match <- grid_match(distinct(dplyr::select(mme, lon, lat)), distinct(dplyr::select(med_regions, lon, lat))) %>% 
   dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
@@ -1170,7 +1164,7 @@ site_MME_summary <- mme %>%
          # `Damaged qualitative` != "No",
          # `Upper Depth` <= 15,
          EvenStart %in% c("Summer", "Autumn")) %>% 
-  group_by(year, Ecoregion, Location, lon, lat) %>% 
+  group_by(Ecoregion, year, `Monitoring series`, `Damaged qualitative`, EvenStart, Location, lon, lat) %>% 
   summarise(`Damaged percentage` = round(mean(`Damaged percentage`, na.rm = T)),
             count_MME = n(), .groups = "drop") %>% 
   dplyr::rename(lon_mme = lon, lat_mme = lat)
@@ -1316,7 +1310,6 @@ ggsave("figures/scatter_MME_MHW.png", scatter_MME_MHW, height = 9, width = 16)
 # E.G. The threshold of 3 MHW vs 2 MHW
 # Scatterplots with icum for all species and global
 # Also ecoregions
-# Have linear model lines that show only data points from the upper 15 m
 
 # Load MME MHW pairing data
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
@@ -1335,7 +1328,6 @@ mme_reg <- mme %>%
                                          "year", "Ecoregion", "Location")) %>% 
   dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
                 `Damaged percentage (mean)` = `Damaged percentage.y`)
-mme_reg_15 <-  filter(mme_reg, `Upper Depth` <= 15)
 
 # List of grouped species
 spp_1 <- filter(species_groups, group == "1")
@@ -1347,21 +1339,16 @@ mme_reg_1 <-  filter(mme_reg, Species %in% spp_1$species)
 mme_reg_2 <-  filter(mme_reg, Species %in% spp_2$species)
 mme_reg_3 <-  filter(mme_reg, Species %in% spp_3$species)
 
-# Filter events near the surface
-mme_reg_1_15 <-  filter(mme_reg_1, `Upper Depth` <= 15)
-mme_reg_2_15 <-  filter(mme_reg_2, `Upper Depth` <= 15)
-mme_reg_3_15 <-  filter(mme_reg_3, `Upper Depth` <= 15)
-
 # Paramuricea clavata is perhaps the best candidate for heat stress
 mme_reg_Pcla <- filter(mme_reg, Species == "Paramuricea clavata")#,
          # `Damaged qualitative` != "No")
-mme_reg_Pcla_15 <- filter(mme_reg_Pcla, `Upper Depth` <= 15)
 
 # Convenience function
-species_scatter <- function(df, df_15, spp_title){
+species_scatter <- function(df, spp_title){
  df_long <- df %>% 
    pivot_longer(duration:icum)
- df_15_long <- df_15 %>% 
+ df_15_long <- df %>%
+   filter(`Upper Depth` <= 15) %>% 
    pivot_longer(duration:icum)
  ggplot(data = df_long, aes(x = value, y = `Damaged percentage`)) +
    geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
@@ -1370,7 +1357,7 @@ species_scatter <- function(df, df_15, spp_title){
    geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
    labs(y = "MME damage (%) per pixel/year", x = NULL, shape = "Year",
         title = paste0(spp_title, "MME damage vs MHW metrics (JJASON)"),
-        subtitle = "Solid lines show all depths and dashed lines show <= 15 m") +
+        subtitle = "Solid lines for all depths and dashed lines shallower than 15 m") +
    facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
    scale_y_continuous(limits = c(-2, max(df_long$`Damaged percentage`, na.rm = T)+2)) +
    # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
@@ -1379,25 +1366,23 @@ species_scatter <- function(df, df_15, spp_title){
 }
 
 # Scatterplot of Paramuricea clavata MME vs MHW per pixel
-scatter_Pcla <- species_scatter(mme_reg_Pcla, mme_reg_Pcla_15, "Paramuricea clavata ")
+scatter_Pcla <- species_scatter(mme_reg_Pcla, "Paramuricea clavata ")
 ggsave("figures/scatter_Pcla.png", scatter_Pcla, height = 6, width = 9)
 
 # Scatterplot for group 1 species
-scatter_spp_1 <- species_scatter(mme_reg_1, mme_reg_1_15, "Group 1 species ")
+scatter_spp_1 <- species_scatter(mme_reg_1, "Group 1 species ")
 ggsave("figures/scatter_spp_1.png", scatter_spp_1, height = 6, width = 9)
 
 # Scatterplot for group 1+2 species
-scatter_spp_1_2 <- species_scatter(rbind(mme_reg_1, mme_reg_2),
-                                   rbind(mme_reg_1_15, mme_reg_2_15), "Group 1+2 species ")
+scatter_spp_1_2 <- species_scatter(rbind(mme_reg_1, mme_reg_2), "Group 1+2 species ")
 ggsave("figures/scatter_spp_1_2.png", scatter_spp_1_2, height = 6, width = 9)
 
 # Scatterplot for group 1+2 species
-scatter_spp_1_2_3 <- species_scatter(rbind(mme_reg_1, mme_reg_2, mme_reg_3),
-                                     rbind(mme_reg_1_15, mme_reg_2_15, mme_reg_3_15), "Group 1+2+3 species ")
+scatter_spp_1_2_3 <- species_scatter(rbind(mme_reg_1, mme_reg_2, mme_reg_3), "Group 1+2+3 species ")
 ggsave("figures/scatter_spp_1_2_3.png", scatter_spp_1_2_3, height = 6, width = 9)
 
 # Scatterplot for all species
-scatter_spp_all <- species_scatter(mme_reg, mme_reg_15, "All species ")
+scatter_spp_all <- species_scatter(mme_reg, "All species ")
 ggsave("figures/scatter_spp_all.png", scatter_spp_all, height = 6, width = 9)
 
 
@@ -1471,6 +1456,8 @@ ggsave("figures/scatter_spp_all.png", scatter_spp_all, height = 6, width = 9)
 
 # Temporal summary figure -------------------------------------------------
 
+# Calculate annual SST anomaly for globe
+# Get the linear trend and the 2015-2019 period
 
 
 # MHW metric time series and MME rug plot ---------------------------------
@@ -1482,45 +1469,92 @@ ggsave("figures/scatter_spp_all.png", scatter_spp_all, height = 6, width = 9)
 # Requires: site_MME_MHW_summary
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 
+# Complete region/year grid
+full_region_grid <- expand_grid(Ecoregion = unique(mme$Ecoregion))
+full_region_year_grid <- expand_grid(year = seq(2015, 2019), 
+                                     Ecoregion = unique(mme$Ecoregion))
+
 # Prepare MME points
 mme_points <- mme %>% 
   filter(Species != "Pinna nobilis",
+         `Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring"),
          `Damaged qualitative` != "No",
          # `Upper Depth` <= 15,
          EvenStart %in% c("Summer", "Autumn"))
 
-# Complete region/year grid
-full_region_year_grid <- expand_grid(year = seq(2015, 2019), 
-                                     Ecoregion = unique(mme$Ecoregion))
+# Regularly sampled sites
+mme_sites_unique <- mme_points %>% 
+  dplyr::select(Ecoregion, lon, lat) %>% 
+  unique()
+
+# Average MHW stats per regularly sampled site
+mhw_sites_average <- site_MME_MHW_summary %>% 
+  group_by(Ecoregion, year) %>% 
+  right_join(mme_sites_unique, by = c("Ecoregion", "lon_mme" = "lon", "lat_mme" = "lat")) %>% 
+  summarise(sites_mhw = n(), 
+            duration = mean(duration, na.rm = T),
+            icum = mean(icum, na.rm = T), .groups = "drop") %>% 
+  right_join(full_region_year_grid, by = c("Ecoregion", "year")) %>% 
+  replace(is.na(.), 0)
+
+# Unique sites per ecoregion
+mme_sites <- site_MME_MHW_summary %>% 
+  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring")) %>% 
+  group_by(Ecoregion, year, lon_mme, lat_mme) %>%
+  # dplyr::select(Ecoregion, lon, lat) %>%
+  # unique(.) %>%
+  summarise(sites_mme = n(), .groups = "drop") %>%
+  right_join(full_region_year_grid, by = c("Ecoregion", "year")) %>%
+  replace(is.na(.), 0) %>% 
+  group_by(Ecoregion, year) %>%
+  summarise(sites_mme = sum(sites_mme), .groups = "drop")
+  
 # Prepare MME labels
-mme_labels <- mme_points %>% 
-  group_by(year, Ecoregion) %>% 
-  summarise(count = n(), .groups = "drop") %>% 
-  right_join(full_region_year_grid, by = c("year", "Ecoregion")) %>% 
-  mutate(count = ifelse(is.na(count), 0, count)) %>% 
-  arrange(year, Ecoregion)
+# mme_labels <- mme_points %>% 
+#   group_by(year, Ecoregion) %>% 
+#   summarise(mme_count = n(), .groups = "drop") %>% 
+#   right_join(full_region_year_grid, by = c("year", "Ecoregion")) %>% 
+#   mutate(mme_count = ifelse(is.na(mme_count), 0, mme_count)) %>% 
+#   # left_join(mme_sites, by = "Ecoregion") %>% 
+#   # mutate(mme_count_prop = round(mme_count/site_count, 1)) %>% 
+#   replace(is.na(.), 0) %>% 
+#   arrange(year, Ecoregion)
 
 # Filter data to target time period
 ecoregion_MME_MHW <- site_MME_MHW_summary %>% 
-  dplyr::select(Ecoregion, year, count_MHW:count_MME, -Location) %>% 
+  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring"),
+         `Damaged qualitative` != "No") %>%
+  # right_join(mme_sites_unique, by = c("Ecoregion", "lon_mme" = "lon", "lat_mme" = "lat")) %>% 
+  # group_by(lon_mme, lat_mme) %>% 
+  # ungroup() %>% 
+  # dplyr::select(Ecoregion, year, count_MHW:count_MME, -Location) %>% 
   group_by(Ecoregion, year) %>% 
   summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T),
+            # sites_mme = n(),
             count_MME_sum = sum(count_MME, na.rm = T),
-            count_MME_mean = mean(count_MME, na.rm = T),
-            count_MHW_sum = sum(count_MHW, na.rm = T),
+            # count_MHW_sum = sum(count_MHW, na.rm = T),
             # count_MHW_mean = mean(count_MHW),
-            duration = mean(duration, na.rm = T),
+            # duration = mean(duration, na.rm = T),
             # imean = mean(imean),
-            icum = mean(icum, na.rm = T), .groups = "drop") %>% 
-  left_join(mme_labels, by = c("year", "Ecoregion")) %>%
+            # icum = mean(icum, na.rm = T), 
+            .groups = "drop") %>% 
+  right_join(full_region_year_grid, by = c("Ecoregion", "year")) %>% 
+  # mutate(count_MME_mean = round(count_MME_sum/sites_mme, 1)) %>% 
+  left_join(mhw_sites_average, by = c("Ecoregion", "year")) %>% 
+  left_join(mme_sites, by = c("Ecoregion", "year")) %>% 
+  # right_join(mme_labels, by = c("year", "Ecoregion")) %>%
   replace(is.na(.), 0)
 
 # Create a whole Med summary
 ecoregion_MME_MHW_med <- ecoregion_MME_MHW %>% 
   group_by(year) %>% 
-  summarise_all(mean, na.rm = T, .groups = "drop") %>% 
-  mutate(Ecoregion = "Mediterranean",
-         count_MME_sum = round(count_MME_sum))
+  summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T),
+            count_MME_sum = sum(count_MME_sum, na.rm = T),
+            sites_mme = sum(sites_mme, na.rm = T),
+            sites_mhw = sum(sites_mhw, na.rm = T),
+            duration = mean(duration, na.rm = T),
+            icum = mean(icum, na.rm = T), .groups = "drop") %>% 
+  mutate(Ecoregion = "Mediterranean")
 
 # Combine and order factor for plotting
 ecoregion_MME_MHW_all <- rbind(ecoregion_MME_MHW, ecoregion_MME_MHW_med) %>% 
@@ -1529,8 +1563,7 @@ ecoregion_MME_MHW_all <- rbind(ecoregion_MME_MHW, ecoregion_MME_MHW_med) %>%
                                        "Alboran Sea", "Northwestern Mediterranean", 
                                        "Southwestern Mediterranean", "Adriatic Sea",
                                        "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
-                                       "Aegean Sea", "Levantine Sea")),
-         count = round(count))
+                                       "Aegean Sea", "Levantine Sea")))
 
 # Barplot of durations
 bar_dur <- ecoregion_MME_MHW_all %>% 
@@ -1542,15 +1575,16 @@ bar_dur <- ecoregion_MME_MHW_all %>%
            position = "dodge",
            # position = position_stack(reverse = TRUE), 
            width = 1) +
-  geom_label(aes(label = count)) +
+  # geom_label(aes(label = count_MME_mean)) +
+  geom_label(aes(label = paste0(count_MME_sum,"/",sites_mme))) +
   scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
   facet_wrap(~Ecoregion) +
-  scale_y_continuous(limits = c(0, 105), breaks = c(25, 50, 75, 100)) +
+  scale_y_continuous(limits = c(-5, 125), breaks = c(25, 50, 75, 100)) +
   scale_x_continuous(breaks = c(2015, 2017, 2019)) +
   coord_cartesian(expand = F) +
-  labs(x = NULL, y = "Duration (days)", 
-       title = "Total MHW days over JJASON period",
-       subtitle = "Bar colour shows cumulative intensity and labels show MME count") +
+  labs(x = NULL, y = "MHW days", 
+       title = "Total MHW days and cumulative intensity (°C days) per ecoregion/year (JJASON)",
+       subtitle = "Labels show count of MME with damage from regular monitoring at all depths: count/sites") +
   # guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         axis.text = element_text(size = 12),
@@ -1563,6 +1597,6 @@ bar_dur <- ecoregion_MME_MHW_all %>%
         legend.key.width = unit(1, "cm"),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 12))
-bar_dur
+# bar_dur
 ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
 
