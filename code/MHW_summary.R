@@ -1321,6 +1321,10 @@ ggsave("figures/scatter_MME_MHW.png", scatter_MME_MHW, height = 9, width = 16)
 # Load MME MHW pairing data
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 
+# Load species grouping sheet
+species_groups <- read_csv("data/MME_MHWs_relationship_species_selection.csv") %>% 
+  `colnames<-`(c("species", "damage", "group", "group_single"))
+
 # Extract only records with regular monitoring
 mme_reg <- mme %>% 
   filter(Species != "Pinna nobilis",
@@ -1331,43 +1335,69 @@ mme_reg <- mme %>%
                                          "year", "Ecoregion", "Location")) %>% 
   dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
                 `Damaged percentage (mean)` = `Damaged percentage.y`)
+mme_reg_15 <-  filter(mme_reg, `Upper Depth` <= 15)
 
-# List of prime species
-spp_1 <- c("Myriapora truncata", "Pentapora fascialis", "Astroides calycularis", "Caryophyllia inornata", 
-           "Cladocora caespitosa", "Leptopsammia pruvoti")
+# List of grouped species
+spp_1 <- filter(species_groups, group == "1")
+spp_2 <- filter(species_groups, group == "2")
+spp_3 <- filter(species_groups, group == "3")
 
-mme_reg_1 <-  mme_reg %>% 
-  filter(Species %in% spp_1)
+# Filter out regularly montiored sites by species groups
+mme_reg_1 <-  filter(mme_reg, Species %in% spp_1$species)
+mme_reg_2 <-  filter(mme_reg, Species %in% spp_2$species)
+mme_reg_3 <-  filter(mme_reg, Species %in% spp_3$species)
+
+# Filter events near the surface
+mme_reg_1_15 <-  filter(mme_reg_1, `Upper Depth` <= 15)
+mme_reg_2_15 <-  filter(mme_reg_2, `Upper Depth` <= 15)
+mme_reg_3_15 <-  filter(mme_reg_3, `Upper Depth` <= 15)
 
 # Paramuricea clavata is perhaps the best candidate for heat stress
-mme_reg_Pcla <- mme_reg %>% 
-  filter(Species == "Paramuricea clavata")#,
+mme_reg_Pcla <- filter(mme_reg, Species == "Paramuricea clavata")#,
          # `Damaged qualitative` != "No")
+mme_reg_Pcla_15 <- filter(mme_reg_Pcla, `Upper Depth` <= 15)
 
 # Convenience function
-species_scatter <- function(df, spp_title){
-  df %>% 
-    pivot_longer(duration:icum) %>% 
-    ggplot(aes(x = value, y = `Damaged percentage`)) +
-    geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
-    geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
-    labs(y = "MME damage (%) per pixel/year", x = NULL, shape = "Year",
-         title = paste0(spp_title, "MME damage vs MHW metrics (JJASON)")) +
-    facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
-    theme(legend.position = "bottom", legend.box = "vertical",
-          strip.placement = "outside", strip.background = element_blank())
+species_scatter <- function(df, df_15, spp_title){
+ df_long <- df %>% 
+   pivot_longer(duration:icum)
+ df_15_long <- df_15 %>% 
+   pivot_longer(duration:icum)
+ ggplot(data = df_long, aes(x = value, y = `Damaged percentage`)) +
+   geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
+   geom_smooth(data = df_15_long, linetype = "dashed",
+               aes(colour = Ecoregion), method = "lm", se = F) +
+   geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
+   labs(y = "MME damage (%) per pixel/year", x = NULL, shape = "Year",
+        title = paste0(spp_title, "MME damage vs MHW metrics (JJASON)"),
+        subtitle = "Solid lines show all depths and dashed lines show <= 15 m") +
+   facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
+   scale_y_continuous(limits = c(-2, max(df_long$`Damaged percentage`, na.rm = T)+2)) +
+   # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
+   theme(legend.position = "bottom", legend.box = "vertical",
+         strip.placement = "outside", strip.background = element_blank())
 }
 
 # Scatterplot of Paramuricea clavata MME vs MHW per pixel
-scatter_Pcla <- species_scatter(mme_reg_Pcla, "Paramuricea clavata ")
+scatter_Pcla <- species_scatter(mme_reg_Pcla, mme_reg_Pcla_15, "Paramuricea clavata ")
 ggsave("figures/scatter_Pcla.png", scatter_Pcla, height = 6, width = 9)
 
 # Scatterplot for group 1 species
-scatter_spp_1 <- species_scatter(mme_reg_1, "Group 1 species ")
+scatter_spp_1 <- species_scatter(mme_reg_1, mme_reg_1_15, "Group 1 species ")
 ggsave("figures/scatter_spp_1.png", scatter_spp_1, height = 6, width = 9)
 
+# Scatterplot for group 1+2 species
+scatter_spp_1_2 <- species_scatter(rbind(mme_reg_1, mme_reg_2),
+                                   rbind(mme_reg_1_15, mme_reg_2_15), "Group 1+2 species ")
+ggsave("figures/scatter_spp_1_2.png", scatter_spp_1_2, height = 6, width = 9)
+
+# Scatterplot for group 1+2 species
+scatter_spp_1_2_3 <- species_scatter(rbind(mme_reg_1, mme_reg_2, mme_reg_3),
+                                     rbind(mme_reg_1_15, mme_reg_2_15, mme_reg_3_15), "Group 1+2+3 species ")
+ggsave("figures/scatter_spp_1_2_3.png", scatter_spp_1_2_3, height = 6, width = 9)
+
 # Scatterplot for all species
-scatter_spp_all <- species_scatter(mme_reg, "All species ")
+scatter_spp_all <- species_scatter(mme_reg, mme_reg_15, "All species ")
 ggsave("figures/scatter_spp_all.png", scatter_spp_all, height = 6, width = 9)
 
 
