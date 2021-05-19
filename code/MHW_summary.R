@@ -138,48 +138,63 @@ MHW_cat_pixel_annual_sub <- MHW_cat_pixel_annual %>%
 # Med maps of duration summary values
 med_map_dur <- MHW_cat_pixel_annual_sub %>% 
   group_by(lon, lat) %>% 
-  summarise(duration_sum = sum(duration_sum, na.rm = T), .groups = "drop") %>% 
+  summarise(duration_sum = sum(duration_sum, na.rm = T), .groups = "drop") %>%
   ggplot(aes(x = lon, y = lat)) +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
   geom_tile(aes(fill = duration_sum), colour = NA) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
-  scale_fill_distiller("Duration (days)", palette = "Greens", direction = 1) +
+  scale_fill_distiller("Days", palette = "Greens", direction = 1) +
+  scale_y_continuous(breaks = NULL) +
+  scale_x_continuous(breaks = NULL) +
   coord_cartesian(expand = F, 
                   xlim = c(min(med_regions$lon), max(med_regions$lon)),
                   ylim = c(min(med_regions$lat), max(med_regions$lat))) +
-  theme_void() +
-  labs(title = "Sum of MHW days from 2015-2019") +
-  guides(fill = guide_legend(override.aes = list(size = 10))) +
+  theme_bw() +
+  labs(title = "__C)__    Sum of MHW days from 2015-2019", x = NULL, y = NULL) +
+  # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
-        legend.position = "bottom",
-        legend.text = element_text(size = 14),
-        legend.title = element_text(size = 16),
-        panel.background = element_rect(fill = "grey90"))
-med_map_dur
+        plot.title = ggtext::element_markdown(),
+        legend.position = c(0.93, 0.82),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 12),
+        panel.background = element_rect(fill = "grey90"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+# med_map_dur
 
 # Med maps of duration summary values
-med_map_dur <- MHW_cat_pixel_annual_sub %>% 
+med_map_cat <- MHW_cat_pixel_annual_sub %>% 
   group_by(lon, lat) %>% 
-  summarise(duration_sum = sum(duration_sum, na.rm = T), .groups = "drop") %>% 
+  summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>% 
+  mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
   ggplot(aes(x = lon, y = lat)) +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-  geom_tile(aes(fill = duration_sum), colour = NA) +
+  geom_tile(aes(fill = category), colour = NA, show.legend = F) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
-  scale_fill_distiller("Duration (days)", palette = "Greens", direction = 1) +
+  scale_fill_manual("Category", values = MHW_colours) +
+  scale_y_continuous(breaks = NULL) +
+  scale_x_continuous(breaks = NULL) +
   coord_cartesian(expand = F, 
                   xlim = c(min(med_regions$lon), max(med_regions$lon)),
                   ylim = c(min(med_regions$lat), max(med_regions$lat))) +
-  theme_void() +
-  labs(title = "Sum of MHW days from 2015-2019") +
-  guides(fill = guide_legend(override.aes = list(size = 10))) +
+  # theme_void() +
+  theme_bw() +
+  labs(title = "__D)__   Highest MHW categories from 2015-2019", x = NULL, y = NULL) +
+  # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
+        plot.title = ggtext::element_markdown(),
         legend.position = "bottom",
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
-        panel.background = element_rect(fill = "grey90"))
-med_map_dur
+        panel.background = element_rect(fill = "grey90"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+# med_map_cat
 
 # Combine with summary bar plots
+med_map_combi <- ggpubr::ggarrange(med_map_dur, med_map_cat, nrow = 1)
+total_summary_quad <- ggpubr::ggarrange(total_summary, med_map_combi, ncol = 1)
+ggsave("figures/MHW_cat_historic_quad.png", total_summary_quad, height = 9, width = 10)
 
 
 # Per pixel maps with MME -------------------------------------------------
