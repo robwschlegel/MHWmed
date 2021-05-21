@@ -2,6 +2,14 @@
 # This script houses functions used in other scripts
 # It is ordered thus for tidiness and efficiency
 
+# There appear to be some minor pixel issues near the caost with MME matches to non-values
+# So instead we load and use the MHW results directly to ensure MME pairings to MHW pixels
+load("data/MHW_cat_pixel_annual.RData")
+MHW_pixels <- MHW_cat_pixel_annual %>% 
+  ungroup() %>% 
+  select(lon, lat) %>% 
+  distinct()
+
 
 # Setup -------------------------------------------------------------------
 
@@ -74,14 +82,14 @@ MHW_colours <- c(
 )
 
 # The base global map
-map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80", plot = FALSE)) %>%
+map_base <- ggplot2::fortify(maps::map(fill = TRUE, col = "grey80",colour = "black", plot = FALSE)) %>%
   dplyr::rename(lon = long) %>%
   mutate(group = ifelse(lon > 180, group+9999, group),
          lon = ifelse(lon > 180, lon-360, lon))
 
 # The base Med map
 med_base <- ggplot() +
-  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), fill = "grey40") +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), fill = "grey80") +
   theme_void() +
   guides(fill = guide_legend(override.aes = list(size = 10))) #+
 # theme(panel.border = element_rect(colour = "black", fill = NA),
@@ -397,12 +405,15 @@ region_calc <- function(region_name, pixel_sub = "full"){
     region_coords_sub <- left_join(coastal_coords, region_coords, by = c("lon", "lat")) %>% 
       na.omit()
   } else if(pixel_sub == "pixel"){
-    region_coords_sub <- grid_match(filter(mme, Ecoregion == region_name)[c("lon", "lat")],
-                                    region_coords[c("lon", "lat")]) %>% 
-      distinct() %>% 
+    region_coords_sub <- grid_match(filter(mme,
+                                           Ecoregion == region_name,
+                                           `Damaged qualitative` != "No",
+                                           Species != "Pinna nobilis")[c("lon", "lat")],
+                                    MHW_pixels[c("lon", "lat")]) %>% 
       select(lon.y, lat.y) %>% 
       dplyr::rename(lon = lon.y, lat = lat.y) %>% 
-      mutate(Ecoregion = region_name)
+      mutate(Ecoregion = region_name) %>% 
+      distinct()
   } else {
     stop("error in pixel_sub")
   }
@@ -670,6 +681,8 @@ total_summary_fig <- function(df){
     # linetype = "dotted", show.legend = F) +
     geom_point(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, fill = category), 
                shape = 21, show.legend = F) +
+    geom_segment(aes(x = 2015, xend = 2019, y = 20, yend = 20), 
+                 size = 2, colour = "red", lineend = "round") +
     scale_fill_manual("Category", values = MHW_colours) +
     scale_colour_manual("Category", values = MHW_colours) +
     scale_y_continuous(limits = c(0, 100),
@@ -697,6 +710,8 @@ total_summary_fig <- function(df){
     # linetype = "dotted", show.legend = F) +
     geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, fill = category), 
                shape = 21, show.legend = F) +
+    geom_segment(aes(x = 2015, xend = 2019, y = 0.2, yend = 0.2), 
+                 size = 2, colour = "red", lineend = "round") +
     scale_fill_manual("Category", values = MHW_colours) +
     scale_colour_manual("Category", values = MHW_colours) +
     scale_y_continuous(position = "right", 

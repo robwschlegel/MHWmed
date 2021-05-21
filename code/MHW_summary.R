@@ -30,9 +30,10 @@ load("data/MHW_cat_region.RData")
 load("data/MHW_cat_region_coast.RData")
 
 # MME pixels
+# NB: This filters out pixels with "No" damage and Pinna nobilis MME
 # system.time(
 #   MHW_cat_region_pixel <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, pixel_sub = "pixel", .parallel = F)
-# ) # ~2 minutes total
+# ) # ~1 minutes total
 # save(MHW_cat_region_pixel, file = "data/MHW_cat_region_pixel.RData")
 # readr::write_csv(MHW_cat_region_pixel, "data/MHW_cat_region_pixel.csv")
 load("data/MHW_cat_region_pixel.RData")
@@ -54,6 +55,40 @@ load("data/MHW_cat_region_pixel.RData")
 
 # NB: Requires - MHW_cat_region, MHW_cat_region_coast, MHW_cat_region_pixel
 
+# Prep and combine files
+MHW_cat_region$sub <- "Ecoregion"
+MHW_cat_region_coast$sub <- "Coast"
+MHW_cat_region_pixel$sub <- "MME pixels"
+MHW_cat_region_all <- rbind(MHW_cat_region, MHW_cat_region_coast, MHW_cat_region_pixel) %>% 
+  mutate(sub = factor(sub, levels = c("Ecoregion", "Coast", "MME pixels")))
+
+# Boxplots of statistics
+eco_box_plot <- MHW_cat_region_all %>% 
+  filter(as.numeric(month) %in% 6:11, year >= 2015) %>% 
+  mutate(region = factor(region,
+                         levels = c("Alboran Sea", "Northwestern Mediterranean", 
+                                    "Southwestern Mediterranean", "Adriatic Sea",
+                                    "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
+                                    "Aegean Sea", "Levantine Sea")),
+         dur_prop = duration/pixels) %>% 
+  select(region, sub, surface, dur_prop, mean_int) %>% 
+  pivot_longer(surface:mean_int) %>% 
+  mutate(name = case_when(name == "dur_prop" ~ "MHW days (n)",
+                          name == "mean_int" ~ "Mean intensity (°C)",
+                          name == "surface" ~ "Surface area (%)",
+                          TRUE ~ name),
+         name = factor(name, levels = c("Surface area (%)", "MHW days (n)", "Mean intensity (°C)"))) %>% 
+  ggplot(aes(x = region, y = value)) +
+  geom_boxplot(aes(fill = region, linetype = sub)) +
+  coord_flip() +
+  guides(fill = FALSE) +
+  # scale_x_reverse() +
+  facet_wrap(~name, scales = "free_x", nrow = 1, strip.position = "bottom") +
+  labs(x = NULL, y = NULL, linetype = "subset",
+       title = "Boxplots of MHW values for JJASON months from 2015-2019",
+       subtitle = "Different outlined boxplots show subsets of MHW values for whole Ecoregion (solid), coast only (dotted), or MME pixels only (dashed)") +
+  theme(legend.position = "bottom")
+ggsave("figures/MHW_eco_pixels_boxplot.png", eco_box_plot, height = 8, width = 14)
 
 
 # Map summary figures -----------------------------------------------------
@@ -142,7 +177,8 @@ med_map_dur <- MHW_cat_pixel_annual_sub %>%
   ggplot(aes(x = lon, y = lat)) +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
   geom_tile(aes(fill = duration_sum), colour = NA) +
-  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), 
+               fill = "grey70", colour = "black") +
   scale_fill_distiller("Days", palette = "Greens", direction = 1) +
   scale_y_continuous(breaks = NULL) +
   scale_x_continuous(breaks = NULL) +
@@ -154,7 +190,7 @@ med_map_dur <- MHW_cat_pixel_annual_sub %>%
   # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         plot.title = ggtext::element_markdown(),
-        legend.position = c(0.93, 0.82),
+        legend.position = c(0.92, 0.80),
         legend.text = element_text(size = 10),
         legend.title = element_text(size = 12),
         panel.background = element_rect(fill = "grey90"),
@@ -170,7 +206,8 @@ med_map_cat <- MHW_cat_pixel_annual_sub %>%
   ggplot(aes(x = lon, y = lat)) +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
   geom_tile(aes(fill = category), colour = NA, show.legend = F) +
-  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), 
+               fill = "grey70", colour = "black") +
   scale_fill_manual("Category", values = MHW_colours) +
   scale_y_continuous(breaks = NULL) +
   scale_x_continuous(breaks = NULL) +
