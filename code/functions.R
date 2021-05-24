@@ -2,14 +2,6 @@
 # This script houses functions used in other scripts
 # It is ordered thus for tidiness and efficiency
 
-# There appear to be some minor pixel issues near the caost with MME matches to non-values
-# So instead we load and use the MHW results directly to ensure MME pairings to MHW pixels
-load("data/MHW_cat_pixel_annual.RData")
-MHW_pixels <- MHW_cat_pixel_annual %>% 
-  ungroup() %>% 
-  select(lon, lat) %>% 
-  distinct()
-
 
 # Setup -------------------------------------------------------------------
 
@@ -97,6 +89,15 @@ med_base <- ggplot() +
 #       legend.text = element_text(size = 14),
 #       legend.title = element_text(size = 16),
 #       panel.background = element_rect(fill = "grey90"))
+
+# There appear to be some minor pixel issues near the coast with MME matches to non-values
+# So instead we load and use the MHW results directly to ensure MME pairings to MHW pixels
+load("data/MHW_cat_pixel_annual.RData")
+MHW_pixels <- MHW_cat_pixel_annual %>% 
+  ungroup() %>% 
+  select(lon, lat) %>% 
+  distinct()
+
 
 # Functions ---------------------------------------------------------------
 
@@ -968,3 +969,4 @@ MEOW_label_coords <- MEOW %>%
   mutate(coords = purrr::map(data, extract_coords)) %>% 
   dplyr::select(-data) %>% 
   unnest(coords)
+
