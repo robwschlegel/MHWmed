@@ -7,12 +7,12 @@
 
 # The needed packages
 library(tidyverse)
-library(FNN)
-library(geosphere)
-library(sf)
-library(sfheaders)
-library(R.matlab)
-library(doParallel); registerDoParallel(cores = 7)
+# library(FNN)
+# library(geosphere)
+# library(sf)
+# library(sfheaders)
+# library(R.matlab)
+# library(doParallel); registerDoParallel(cores = 7)
 
 # Disable scientific notation
 options(scipen = 999)
@@ -35,7 +35,7 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
          `Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Upper Depth`))),
          `Mortality Lower Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Lower Depth`))),
          `Mortality Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Upper Depth`)))) %>% 
-  dplyr::select(year:`Damaged qualitative`) %>%
+  dplyr::select(year:`Damaged qualitative`, contains("selected")) %>%
   # filter(`Damaged qualitative` != "No", # Filter out 'No' values
   # `Upper Depth` <= 15,
   # Species != "Pinna nobilis") %>% 
@@ -45,6 +45,12 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
          `Damaged qualitative` = ifelse(`Damaged qualitative` == "High", "Moderate", `Damaged qualitative`),
          `Damaged qualitative` = factor(`Damaged qualitative`, levels = c("No", "Low", "Moderate", "Severe")))
 # unique(mme$Ecoregion)
+
+# Manually rename very long column names
+colnames(mme)[22:25] <- c("selected_1", "selected_2", "selected_3", "selected_4")
+
+# The MME values to use with all analyses
+mme_selected_4 <- filter(mme, !selected_4 %in% c("NO", "Non-selected species"))
 
 # Coastal pixels
 coastal_coords <- readMat("data/L4_COAST.mat", sparseMatrixClass = "matrix")[[1]]
@@ -327,6 +333,7 @@ cat_summary_calc <- function(df_pixel, df_daily, JJASON = F){
                                  lubridate::month(t) <= 11)
   }
   
+  # Exit
   return(cat_summary_annual)
 }
 
@@ -406,10 +413,7 @@ region_calc <- function(region_name, pixel_sub = "full"){
     region_coords_sub <- left_join(coastal_coords, region_coords, by = c("lon", "lat")) %>% 
       na.omit()
   } else if(pixel_sub == "pixel"){
-    region_coords_sub <- grid_match(filter(mme,
-                                           Ecoregion == region_name,
-                                           `Damaged qualitative` != "No",
-                                           Species != "Pinna nobilis")[c("lon", "lat")],
+    region_coords_sub <- grid_match(filter(mme_selected_4, Ecoregion == region_name)[c("lon", "lat")],
                                     MHW_pixels[c("lon", "lat")]) %>% 
       select(lon.y, lat.y) %>% 
       dplyr::rename(lon = lon.y, lat = lat.y) %>% 
@@ -603,7 +607,7 @@ annual_summary_fig <- function(chosen_year){
     theme(panel.border = element_rect(colour = "black", fill = NA),
           axis.title = element_text(size = 15),
           axis.text = element_text(size = 13))
-  fig_cum
+  # fig_cum
   
   # Stacked barplot of average cumulative MHW days per pixel
   fig_prop <- ggplot(MHW_cat_filter, aes(x = t, y = cat_n_cum_prop)) +
@@ -844,13 +848,12 @@ monthly_map_pixel <- function(var_choice,
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
   # Prepare MME points
-  mme_points <- mme %>% 
-    filter(year %in% year_range,
-           EvenStart %in% c("Summer", "Autumn"))
+  mme_points <- mme_selected_4 %>% 
+    filter(year %in% year_range)
   
   # Complete region/year grid
   full_region_year_grid <- expand_grid(year = year_range, 
-                                       Ecoregion = unique(mme$Ecoregion))
+                                       Ecoregion = unique(mme_selected_4$Ecoregion))
   # Prepare MME labels
   mme_labels <- mme_points %>% 
     group_by(year, Ecoregion) %>% 
@@ -891,12 +894,12 @@ monthly_map_pixel <- function(var_choice,
       facet_grid(year ~ month) +
       theme(legend.position = "bottom")
   } 
-  if(var_choice == "duration") multi_panel <- multi_panel + 
+  if(var_choice == "duration_sum") multi_panel <- multi_panel +
     scale_fill_viridis_c("Duration")
-  if(var_choice == "cum_int") multi_panel <- multi_panel + 
+  if(var_choice == "cum_int") multi_panel <- multi_panel +
     scale_fill_viridis_c("Cumulative\nIntensity", option = "B")
-  if(var_choice == "category") multi_panel <- multi_panel + 
-    scale_fill_manual("Category", values = MHW_colours) + 
+  if(var_choice == "category") multi_panel <- multi_panel +
+    scale_fill_manual("Category", values = MHW_colours) +
     guides(fill = guide_legend(nrow = 2, byrow = TRUE))
   rm(MHW_cat_pixel_filter); gc()
   return(multi_panel)
@@ -954,10 +957,10 @@ MEOW_new <- MEOW[c(7,7),] %>%
          geometry = c(NW_polygon$geometry, SW_polygon$geometry))
 # Reintroduce to MEOW
 MEOW <- rbind(MEOW[-7,], MEOW_new)
-unique(MEOW$ECOREGION)
+# unique(MEOW$ECOREGION)
 
 # Find SST pixels within Med MEOW
-registerDoParallel(cores = 7)
+registerDoParallel(cores = 15)
 med_regions <- plyr::ldply(unique(MEOW$ECOREGION), points_in_region, .parallel = T) %>% 
   mutate(Ecoregion = case_when(Ecoregion == "Southwestern Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
                                TRUE ~ Ecoregion))
