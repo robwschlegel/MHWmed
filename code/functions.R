@@ -7,12 +7,12 @@
 
 # The needed packages
 library(tidyverse)
-# library(FNN)
-# library(geosphere)
-# library(sf)
-# library(sfheaders)
-# library(R.matlab)
-# library(doParallel); registerDoParallel(cores = 7)
+library(FNN)
+library(geosphere)
+library(sf)
+library(sfheaders)
+library(R.matlab)
+library(doParallel); registerDoParallel(cores = 7)
 
 # Disable scientific notation
 options(scipen = 999)
@@ -905,6 +905,41 @@ monthly_map_pixel <- function(var_choice,
   return(multi_panel)
 }
 
+# Barplot of durations
+bar_dur_fig <- function(df, title_bit){
+  df %>% 
+    ggplot(aes(x = year, y = duration)) +
+    geom_bar(aes(fill = icum), 
+             colour = "black",
+             stat = "identity", 
+             show.legend = T,
+             position = "dodge",
+             # position = position_stack(reverse = TRUE), 
+             width = 1) +
+    # geom_label(aes(label = count_MME_mean)) +
+    geom_label(aes(label = paste0(mme_count,"/",site_count)), size = 3) +
+    scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
+    facet_wrap(~Ecoregion) +
+    scale_y_continuous(limits = c(0, 125), breaks = c(25, 50, 75, 100)) +
+    scale_x_continuous(breaks = c(2015, 2017, 2019)) +
+    coord_cartesian(expand = F) +
+    labs(x = NULL, y = "MHW days", 
+         title = paste0("Total MHW days and cumulative intensity (°C days) per ecoregion/year", title_bit),
+         subtitle = "Labels show count of MME with damage at all depths: count/sites") +
+    # guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
+    theme(panel.border = element_rect(colour = "black", fill = NA),
+          axis.text = element_text(size = 12),
+          axis.title = element_text(size = 14),
+          legend.text = element_text(size = 12),
+          legend.title = element_text(size = 14),
+          # legend.position = c(0.83, 0.16),
+          legend.position = "bottom",
+          # legend.direction = "horizontal",
+          legend.key.width = unit(1, "cm"),
+          panel.background = element_rect(fill = "grey90"), 
+          strip.text = element_text(size = 12))
+}
+
 # Quick scatterplots of species data
 species_scatter <- function(df, spp_title){
   df_long <- df %>% 
@@ -923,7 +958,8 @@ species_scatter <- function(df, spp_title){
     facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
     scale_y_continuous(limits = c(-2, max(df_long$`Damaged percentage`, na.rm = T)+2)) +
     # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
-    theme(legend.position = "bottom", legend.box = "vertical",
+    theme(panel.border = element_rect(colour = "black", fill = NA),
+          legend.position = "bottom", legend.box = "vertical",
           strip.placement = "outside", strip.background = element_blank())
 }
 
