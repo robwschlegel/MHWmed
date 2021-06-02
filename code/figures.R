@@ -146,6 +146,12 @@ scatter_spp_all <- species_scatter(mme_reg, "All species ")
 ggsave("figures/fig_3.png", scatter_spp_all, height = 5, width = 8)
 
 # Correlation results
+## Do this for all groups. Be extra.
+mme_reg %>% 
+  group_by(Ecoregion) %>% 
+  na.omit() %>% 
+  summarise(r_dur = cor(`Damaged percentage`, duration),
+            r_icum = cor(`Damaged percentage`, icum))
 
 
 # Figure 4 ----------------------------------------------------------------
