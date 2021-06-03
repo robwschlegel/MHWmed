@@ -10,9 +10,33 @@ source("code/functions.R")
 
 # Figure 1 ----------------------------------------------------------------
 
+# Load med and global annual MHW summary stats
+load("data/MHW_cat_summary_annual.RData")
+OISST_global <- readRDS("data/OISST_cat_daily_1992-2018_total.Rds") %>% 
+  group_by(t) %>% 
+  mutate(cat_n_prop_stack = cumsum(cat_n_prop),
+         first_n_cum_prop_stack = cumsum(first_n_cum_prop)) %>% 
+  ungroup()
+
 # Total annual Med MHW summary with global overlay
 total_summary <- total_summary_fig(MHW_cat_summary_annual)
 ggsave("figures/fig_1.png", total_summary, height = 4.25, width = 8)
+
+# Prep data for stats
+MHW_cat_summary <- MHW_cat_summary_annual %>% 
+  group_by(t) %>% 
+  mutate(cat_n_prop_stack = cumsum(cat_n_prop),
+         first_n_cum_prop_stack = cumsum(first_n_cum_prop)) %>% 
+  ungroup() %>% 
+  filter(category == "IV Extreme",
+         grepl("12-31", as.character(t)))
+OISST_global_summary <- OISST_global %>% 
+  filter(category == "IV Extreme")
+
+# MHW stats
+lm(cat_n_prop_stack ~ year, MHW_cat_summary)
+0.006095*365
+lm(cat_n_prop_stack ~ t, OISST_global_summary)
 
 
 # Figure 2 ----------------------------------------------------------------
@@ -150,9 +174,10 @@ ggsave("figures/fig_3.png", scatter_spp_all, height = 5, width = 8)
 mme_reg %>% 
   group_by(Ecoregion) %>% 
   na.omit() %>% 
-  summarise(r_dur = cor(`Damaged percentage`, duration),
-            r_icum = cor(`Damaged percentage`, icum))
-
+  summarise(r_dur = cor.test(`Damaged percentage`, duration)$estimate,
+            p_dur = cor.test(`Damaged percentage`, duration)$p.value,
+            r_icum = cor.test(`Damaged percentage`, icum)$estimate,
+            p_icum = cor.test(`Damaged percentage`, icum)$p.value)
 
 # Figure 4 ----------------------------------------------------------------
 
