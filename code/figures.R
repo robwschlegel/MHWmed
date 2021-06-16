@@ -178,6 +178,11 @@ mme_reg %>%
             r_icum = cor.test(`Damaged percentage`, icum)$estimate,
             p_icum = cor.test(`Damaged percentage`, icum)$p.value)
 
+# Save NW and SW Med data for Quim
+mme_reg_sub <- mme_reg %>% 
+  filter(Ecoregion %in% c("Northwestern Mediterranean", "Souththwestern Mediterranean"))
+write_csv(mme_reg_sub, "data/MME_NW_SW.csv")
+
 
 # Figure 4 ----------------------------------------------------------------
 

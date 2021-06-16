@@ -5,6 +5,7 @@
 data/**/*.nc
 data/**/*.zip
 data/**/*.Rds
+data/MME_NW_SW.csv
 data/Cnidaria_CatalanCoast.csv
 data/MHW_cat_pixel_monthly.RData
 data/MHW_cat_pixel_annual.RData
