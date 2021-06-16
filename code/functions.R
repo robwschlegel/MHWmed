@@ -942,21 +942,41 @@ bar_dur_fig <- function(df, title_bit){
 
 # Quick scatterplots of species data
 species_scatter <- function(df, spp_title){
+  # Pivot icum to long for plotting
   df_long <- df %>% 
-    pivot_longer(duration:icum)
-  df_15_long <- df %>%
-    filter(`Upper Depth` <= 15) %>% 
-    pivot_longer(duration:icum)
-  ggplot(data = df_long, aes(x = value, y = `Damaged percentage`)) +
-    geom_point(aes(colour = Ecoregion, shape = as.character(year))) +
-    geom_smooth(data = df_15_long, linetype = "dashed",
-                aes(colour = Ecoregion), method = "lm", se = F) +
-    geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
-    labs(y = "MME damage (%) per pixel/year", x = NULL, shape = "Year",
-         title = paste0(spp_title, "MME damage vs MHW metrics (JJASON)"),
+    pivot_longer(duration:icum) %>% 
+    filter(name == "icum")
+  # Get Med total
+  df_med <- df_long %>% 
+    mutate(Ecoregion = "Mediterranean")
+  # Combine and order factor for plotting
+  df_all <- rbind(df_long, df_med) %>% 
+    mutate(Ecoregion = factor(Ecoregion, 
+                              levels = c("Mediterranean",
+                                         "Alboran Sea", "Northwestern Mediterranean", 
+                                         "Southwestern Mediterranean", "Adriatic Sea",
+                                         "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
+                                         "Aegean Sea", "Levantine Sea")))
+  # Get the depths at or above 15 m
+  df_15 <- df_all %>%
+    filter(`Upper Depth` <= 15)
+  # Create labels for count of observations per ecoregions
+  df_label <- df_all %>% 
+    group_by(Ecoregion) %>% 
+    summarise(count = n(),
+              x_point = sum(range(value))/2, .groups = "drop")
+  # The figure
+  ggplot(data = df_all, aes(x = value, y = `Damaged percentage`)) +
+    geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
+    geom_smooth(colour = "black", method = "lm", se = F) +
+    geom_point(aes(colour = as.character(year))) +
+    geom_label(data = df_label, aes(y = 10, x = x_point, label = paste0("n = ",count)), alpha = 0.6) +
+    guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
+    labs(y = "MME damage (%) per pixel/year", x = NULL, colour = "Year",
+         title = paste0(spp_title, "MME damage vs MHW cumulative intensity (JJASON)"),
          subtitle = "Solid lines for all depths and dashed lines shallower than 15 m") +
-    facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
-    scale_y_continuous(limits = c(-2, max(df_long$`Damaged percentage`, na.rm = T)+2)) +
+    facet_wrap(~Ecoregion, scales = "free_x") +#, strip.position = "bottom") +
+    scale_y_continuous(limits = c(-2, max(df_all$`Damaged percentage`, na.rm = T)+2)) +
     # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
           legend.position = "bottom", legend.box = "vertical",
