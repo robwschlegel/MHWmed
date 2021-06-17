@@ -153,19 +153,19 @@ mme_reg_Pcla <- filter(mme_reg, Species == "Paramuricea clavata")#,
 
 # Scatterplot of Paramuricea clavata MME vs MHW per pixel
 scatter_Pcla <- species_scatter(mme_reg_Pcla, "Paramuricea clavata ")
-ggsave("figures/scatter_Pcla.png", scatter_spp_all, height = 6, width = 8)
+ggsave("figures/scatter_Pcla.png", scatter_Pcla, height = 6, width = 8)
 
 # Scatterplot for group 1 species
 scatter_spp_1 <- species_scatter(mme_reg_1, "Group 1 species ")
-ggsave("figures/scatter_spp_1.png", scatter_spp_all, height = 6, width = 8)
+ggsave("figures/scatter_spp_1.png", scatter_spp_1, height = 6, width = 8)
 
 # Scatterplot for group 1+2 species
 scatter_spp_1_2 <- species_scatter(rbind(mme_reg_1, mme_reg_2), "Group 1+2 species ")
-ggsave("figures/scatter_spp_1_2.png", scatter_spp_all, height = 6, width = 8)
+ggsave("figures/scatter_spp_1_2.png", scatter_spp_1_2, height = 6, width = 8)
 
 # Scatterplot for group 1+2 species
 scatter_spp_1_2_3 <- species_scatter(rbind(mme_reg_1, mme_reg_2, mme_reg_3), "Group 1+2+3 species ")
-ggsave("figures/scatter_spp_1_2_3.png", scatter_spp_all, height = 6, width = 8)
+ggsave("figures/scatter_spp_1_2_3.png", scatter_spp_1_2_3, height = 6, width = 8)
 
 # Scatterplot for all species
 scatter_spp_all <- species_scatter(mme_reg, "All species ")
