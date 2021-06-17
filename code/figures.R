@@ -130,7 +130,7 @@ species_groups <- read_csv("data/MME_MHWs_relationship_species_selection.csv") %
 
 # Extract only records with regular monitoring
 mme_reg <- mme_selected_5 %>% 
-  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring")) %>% 
+  # filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring")) %>% 
   left_join(site_MME_MHW_summary, by = c("lon" = "lon_mme", "lat" = "lat_mme",
                                          "year", "Ecoregion", "Location", 
                                          "Monitoring series", "EvenStart", "Damaged qualitative")) %>% 
@@ -148,8 +148,8 @@ mme_reg_2 <-  filter(mme_reg, Species %in% spp_2$species)
 mme_reg_3 <-  filter(mme_reg, Species %in% spp_3$species)
 
 # Paramuricea clavata is perhaps the best candidate for heat stress
-mme_reg_Pcla <- filter(mme_reg, Species == "Paramuricea clavata")#,
-# `Damaged qualitative` != "No")
+mme_reg_Pcla <- filter(mme_reg, Species == "Paramuricea clavata",
+                       Ecoregion != "Ionian Sea") # Only two data points, which causes a correlation error
 
 # Scatterplot of Paramuricea clavata MME vs MHW per pixel
 scatter_Pcla <- species_scatter(mme_reg_Pcla, "Paramuricea clavata ")
