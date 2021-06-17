@@ -129,7 +129,7 @@ species_groups <- read_csv("data/MME_MHWs_relationship_species_selection.csv") %
   `colnames<-`(c("species", "damage", "group", "group_single"))
 
 # Extract only records with regular monitoring
-mme_reg <- mme_selected_4 %>% 
+mme_reg <- mme_selected_5 %>% 
   filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring")) %>% 
   left_join(site_MME_MHW_summary, by = c("lon" = "lon_mme", "lat" = "lat_mme",
                                          "year", "Ecoregion", "Location", 
@@ -153,20 +153,22 @@ mme_reg_Pcla <- filter(mme_reg, Species == "Paramuricea clavata")#,
 
 # Scatterplot of Paramuricea clavata MME vs MHW per pixel
 scatter_Pcla <- species_scatter(mme_reg_Pcla, "Paramuricea clavata ")
+ggsave("figures/scatter_Pcla.png", scatter_spp_all, height = 6, width = 8)
 
 # Scatterplot for group 1 species
 scatter_spp_1 <- species_scatter(mme_reg_1, "Group 1 species ")
+ggsave("figures/scatter_spp_1.png", scatter_spp_all, height = 6, width = 8)
 
 # Scatterplot for group 1+2 species
 scatter_spp_1_2 <- species_scatter(rbind(mme_reg_1, mme_reg_2), "Group 1+2 species ")
+ggsave("figures/scatter_spp_1_2.png", scatter_spp_all, height = 6, width = 8)
 
 # Scatterplot for group 1+2 species
 scatter_spp_1_2_3 <- species_scatter(rbind(mme_reg_1, mme_reg_2, mme_reg_3), "Group 1+2+3 species ")
+ggsave("figures/scatter_spp_1_2_3.png", scatter_spp_all, height = 6, width = 8)
 
 # Scatterplot for all species
 scatter_spp_all <- species_scatter(mme_reg, "All species ")
-
-# Save one as Figure 3
 ggsave("figures/fig_3.png", scatter_spp_all, height = 6, width = 8)
 
 # Correlation results

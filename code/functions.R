@@ -35,7 +35,7 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
          `Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Upper Depth`))),
          `Mortality Lower Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Lower Depth`))),
          `Mortality Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Upper Depth`)))) %>% 
-  dplyr::select(year:`Damaged qualitative`, contains("selected")) %>%
+  dplyr::select(year:`Damaged qualitative`, contains(c("selected", "same as"))) %>%
   # filter(`Damaged qualitative` != "No", # Filter out 'No' values
   # `Upper Depth` <= 15,
   # Species != "Pinna nobilis") %>% 
@@ -47,10 +47,11 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
 # unique(mme$Ecoregion)
 
 # Manually rename very long column names
-colnames(mme)[22:25] <- c("selected_1", "selected_2", "selected_3", "selected_4")
+colnames(mme)[22:26] <- c("selected_1", "selected_2", "selected_3", "selected_4", "selected_5")
 
 # The MME values to use with all analyses
 mme_selected_4 <- filter(mme, !selected_4 %in% c("NO", "Non-selected species"))
+mme_selected_5 <- filter(mme, selected_5 %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
 
 # Coastal pixels
 coastal_coords <- readMat("data/L4_COAST.mat", sparseMatrixClass = "matrix")[[1]]
@@ -960,17 +961,22 @@ species_scatter <- function(df, spp_title){
   # Get the depths at or above 15 m
   df_15 <- df_all %>%
     filter(`Upper Depth` <= 15)
-  # Create labels for count of observations per ecoregions
+  # Create labels for count of observations and correlations per ecoregions
   df_label <- df_all %>% 
+    na.omit() %>% 
     group_by(Ecoregion) %>% 
     summarise(count = n(),
-              x_point = sum(range(value))/2, .groups = "drop")
+              r_icum = round(cor.test(`Damaged percentage`, value)$estimate, 2),
+              p_icum = round(cor.test(`Damaged percentage`, value)$p.value, 2),
+              x_point = sum(range(value, na.rm = T))/2, .groups = "drop")
   # The figure
   ggplot(data = df_all, aes(x = value, y = `Damaged percentage`)) +
     geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
     geom_smooth(colour = "black", method = "lm", se = F) +
     geom_point(aes(colour = as.character(year))) +
     geom_label(data = df_label, aes(y = 10, x = x_point, label = paste0("n = ",count)), alpha = 0.6) +
+    geom_label(data = df_label, alpha = 0.6, 
+               aes(y = 90, x = x_point, label = paste0("r = ",r_icum,", p = ",p_icum))) +
     guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
     labs(y = "MME damage (%) per pixel/year", x = NULL, colour = "Year",
          title = paste0(spp_title, "MME damage vs MHW cumulative intensity (JJASON)"),
