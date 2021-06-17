@@ -161,77 +161,77 @@ doParallel::registerDoParallel(cores = 15)
 # plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
-# total_summary <- total_summary_fig(MHW_cat_summary_annual)
-# ggsave("figures/MHW_cat_historic.png", total_summary, height = 4.25, width = 8)
-# total_summary_JJASON <- total_summary_fig(MHW_cat_summary_annual_JJASON)
-# ggsave("figures/MHW_cat_historic_JJASON.png", total_summary_JJASON, height = 4.25, width = 8)
+total_summary <- total_summary_fig(MHW_cat_summary_annual)
+ggsave("figures/MHW_cat_historic.png", total_summary, height = 4.25, width = 8)
+total_summary_JJASON <- total_summary_fig(MHW_cat_summary_annual_JJASON)
+ggsave("figures/MHW_cat_historic_JJASON.png", total_summary_JJASON, height = 4.25, width = 8)
 
 # Subset data for following two figures
-# MHW_cat_pixel_annual_sub <- MHW_cat_pixel_annual %>% 
-#   filter(year %in% seq(2015, 2019))
+MHW_cat_pixel_annual_sub <- MHW_cat_pixel_annual %>%
+  filter(year %in% seq(2015, 2019))
 
 # Med maps of duration summary values
-# med_map_dur <- MHW_cat_pixel_annual_sub %>% 
-#   group_by(lon, lat) %>% 
-#   summarise(duration_sum = sum(duration_sum, na.rm = T), .groups = "drop") %>%
-#   ggplot(aes(x = lon, y = lat)) +
-#   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-#   geom_tile(aes(fill = duration_sum), colour = NA) +
-#   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), 
-#                fill = "grey70", colour = "black") +
-#   scale_fill_distiller("Days", palette = "Greens", direction = 1) +
-#   scale_y_continuous(breaks = NULL) +
-#   scale_x_continuous(breaks = NULL) +
-#   coord_cartesian(expand = F, 
-#                   xlim = c(min(med_regions$lon), max(med_regions$lon)),
-#                   ylim = c(min(med_regions$lat), max(med_regions$lat))) +
-#   theme_bw() +
-#   labs(title = "__C)__    Sum of MHW days from 2015-2019", x = NULL, y = NULL) +
-#   # guides(fill = guide_legend(override.aes = list(size = 10))) +
-#   theme(panel.border = element_rect(colour = "black", fill = NA),
-#         plot.title = ggtext::element_markdown(),
-#         legend.position = c(0.92, 0.80),
-#         legend.text = element_text(size = 10),
-#         legend.title = element_text(size = 12),
-#         panel.background = element_rect(fill = "grey90"),
-#         axis.text = element_blank(),
-#         axis.ticks = element_blank())
-# med_map_dur
+med_map_dur <- MHW_cat_pixel_annual_sub %>%
+  group_by(lon, lat) %>%
+  summarise(duration_sum = sum(duration_sum, na.rm = T), .groups = "drop") %>%
+  ggplot(aes(x = lon, y = lat)) +
+  # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
+  geom_tile(aes(fill = duration_sum), colour = NA) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
+               fill = "grey70", colour = "black") +
+  scale_fill_distiller("Days", palette = "Greens", direction = 1) +
+  scale_y_continuous(breaks = NULL) +
+  scale_x_continuous(breaks = NULL) +
+  coord_cartesian(expand = F,
+                  xlim = c(min(med_regions$lon), max(med_regions$lon)),
+                  ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  theme_bw() +
+  labs(title = "__C)__    Sum of MHW days from 2015-2019", x = NULL, y = NULL) +
+  # guides(fill = guide_legend(override.aes = list(size = 10))) +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        plot.title = ggtext::element_markdown(),
+        legend.position = c(0.92, 0.80),
+        legend.text = element_text(size = 10),
+        legend.title = element_text(size = 12),
+        panel.background = element_rect(fill = "grey90"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+med_map_dur
 
 # Med maps of duration summary values
-# med_map_cat <- MHW_cat_pixel_annual_sub %>% 
-#   group_by(lon, lat) %>% 
-#   summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>% 
-#   mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>% 
-#   ggplot(aes(x = lon, y = lat)) +
-#   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-#   geom_tile(aes(fill = category), colour = NA, show.legend = F) +
-#   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), 
-#                fill = "grey70", colour = "black") +
-#   scale_fill_manual("Category", values = MHW_colours) +
-#   scale_y_continuous(breaks = NULL) +
-#   scale_x_continuous(breaks = NULL) +
-#   coord_cartesian(expand = F, 
-#                   xlim = c(min(med_regions$lon), max(med_regions$lon)),
-#                   ylim = c(min(med_regions$lat), max(med_regions$lat))) +
-#   # theme_void() +
-#   theme_bw() +
-#   labs(title = "__D)__   Highest MHW categories from 2015-2019", x = NULL, y = NULL) +
-#   # guides(fill = guide_legend(override.aes = list(size = 10))) +
-#   theme(panel.border = element_rect(colour = "black", fill = NA),
-#         plot.title = ggtext::element_markdown(),
-#         legend.position = "bottom",
-#         legend.text = element_text(size = 14),
-#         legend.title = element_text(size = 16),
-#         panel.background = element_rect(fill = "grey90"),
-#         axis.text = element_blank(),
-#         axis.ticks = element_blank())
-# med_map_cat
+med_map_cat <- MHW_cat_pixel_annual_sub %>%
+  group_by(lon, lat) %>%
+  summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>%
+  mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
+  ggplot(aes(x = lon, y = lat)) +
+  # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
+  geom_tile(aes(fill = category), colour = NA, show.legend = F) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
+               fill = "grey70", colour = "black") +
+  scale_fill_manual("Category", values = MHW_colours) +
+  scale_y_continuous(breaks = NULL) +
+  scale_x_continuous(breaks = NULL) +
+  coord_cartesian(expand = F,
+                  xlim = c(min(med_regions$lon), max(med_regions$lon)),
+                  ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  # theme_void() +
+  theme_bw() +
+  labs(title = "__D)__   Highest MHW categories from 2015-2019", x = NULL, y = NULL) +
+  # guides(fill = guide_legend(override.aes = list(size = 10))) +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        plot.title = ggtext::element_markdown(),
+        legend.position = "bottom",
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        panel.background = element_rect(fill = "grey90"),
+        axis.text = element_blank(),
+        axis.ticks = element_blank())
+med_map_cat
 
 # Combine with summary bar plots
-# med_map_combi <- ggpubr::ggarrange(med_map_dur, med_map_cat, nrow = 1)
-# total_summary_quad <- ggpubr::ggarrange(total_summary, med_map_combi, ncol = 1)
-# ggsave("figures/MHW_cat_historic_quad.png", total_summary_quad, height = 9, width = 10)
+med_map_combi <- ggpubr::ggarrange(med_map_dur, med_map_cat, nrow = 1)
+total_summary_quad <- ggpubr::ggarrange(total_summary, med_map_combi, ncol = 1)
+ggsave("figures/MHW_cat_historic_quad.png", total_summary_quad, height = 9, width = 10)
 
 
 # Per pixel maps with MME -------------------------------------------------

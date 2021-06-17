@@ -687,8 +687,8 @@ total_summary_fig <- function(df){
     # linetype = "dotted", show.legend = F) +
     geom_point(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, fill = category), 
                shape = 21, show.legend = F) +
-    geom_segment(aes(x = 2015, xend = 2019, y = 20, yend = 20), 
-                 size = 2, colour = "red", lineend = "round") +
+    geom_rect(aes(xmin = 2014.5, xmax = 2019.4, ymin = 0.1, ymax = 99.9), 
+              colour = "black", fill = NA, size = 1.2) +
     scale_fill_manual("Category", values = MHW_colours) +
     scale_colour_manual("Category", values = MHW_colours) +
     scale_y_continuous(limits = c(0, 100),
@@ -716,8 +716,8 @@ total_summary_fig <- function(df){
     # linetype = "dotted", show.legend = F) +
     geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, fill = category), 
                shape = 21, show.legend = F) +
-    geom_segment(aes(x = 2015, xend = 2019, y = 0.2, yend = 0.2), 
-                 size = 2, colour = "red", lineend = "round") +
+    geom_rect(aes(xmin = 2014.5, xmax = 2019.4, ymin = 0, ymax = 1), 
+              colour = "black", fill = NA, size = 1.2) +
     scale_fill_manual("Category", values = MHW_colours) +
     scale_colour_manual("Category", values = MHW_colours) +
     scale_y_continuous(position = "right", 
