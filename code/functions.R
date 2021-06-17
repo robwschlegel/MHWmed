@@ -963,7 +963,7 @@ species_scatter <- function(df, spp_title){
     filter(`Upper Depth` <= 15)
   # Create labels for count of observations and correlations per ecoregions
   df_label <- df_all %>% 
-    na.omit() %>% 
+    # na.omit() %>% # Don't do this here
     group_by(Ecoregion) %>% 
     summarise(count = n(),
               r_icum = round(cor.test(`Damaged percentage`, value)$estimate, 2),
