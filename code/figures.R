@@ -130,7 +130,7 @@ species_groups <- read_csv("data/MME_MHWs_relationship_species_selection.csv") %
 
 # Extract only records with regular monitoring
 mme_reg <- mme_selected_5 %>% 
-  # filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring")) %>% 
+  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring") | Ecoregion == "Alboran Sea") %>%
   left_join(site_MME_MHW_summary, by = c("lon" = "lon_mme", "lat" = "lat_mme",
                                          "year", "Ecoregion", "Location", 
                                          "Monitoring series", "EvenStart", "Damaged qualitative")) %>% 
