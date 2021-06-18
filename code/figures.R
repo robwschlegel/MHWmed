@@ -168,7 +168,7 @@ scatter_spp_1_2_3 <- species_scatter(rbind(mme_reg_1, mme_reg_2, mme_reg_3), "Gr
 ggsave("figures/scatter_spp_1_2_3.png", scatter_spp_1_2_3, height = 6, width = 8)
 
 # Scatterplot for all species
-scatter_spp_all <- species_scatter(mme_reg, "All species ")
+scatter_spp_all <- species_scatter(mme_reg, "FINAL VERSION_TO_CHECK All species ")
 ggsave("figures/fig_3.png", scatter_spp_all, height = 6, width = 8)
 
 # Correlation results
@@ -181,6 +181,7 @@ mme_reg %>%
             p_icum = cor.test(`Damaged percentage`, icum)$p.value)
 
 # Save NW and SW Med data for Quim
+write_csv(mme_reg, "data/MME_MHW.csv")
 mme_reg_sub <- mme_reg %>% 
   filter(Ecoregion %in% c("Northwestern Mediterranean", "Souththwestern Mediterranean"))
 write_csv(mme_reg_sub, "data/MME_NW_SW.csv")

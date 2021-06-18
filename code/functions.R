@@ -978,7 +978,8 @@ species_scatter <- function(df, spp_title){
     geom_label(data = df_label, alpha = 0.6, 
                aes(y = 90, x = x_point, label = paste0("r = ",r_icum,", p = ",p_icum))) +
     guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
-    labs(y = "MME damage (%) per pixel/year", x = NULL, colour = "Year",
+    scale_colour_brewer(palette = "Set1") +
+    labs(y = "MME damage (%)", x = NULL, colour = "Year",
          title = paste0(spp_title, "MME damage vs MHW cumulative intensity (JJASON)"),
          subtitle = "Solid lines for all depths and dashed lines shallower than 15 m") +
     facet_wrap(~Ecoregion, scales = "free_x") +#, strip.position = "bottom") +
