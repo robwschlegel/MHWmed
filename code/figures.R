@@ -128,21 +128,30 @@ site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 species_groups <- read_csv("data/MME_MHWs_relationship_species_selection.csv") %>% 
   `colnames<-`(c("species", "damage", "group", "group_single"))
 
-# Extract only records with regular monitoring
-mme_reg <- mme_selected_5 %>% 
-  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring") | Ecoregion == "Alboran Sea") %>%
+# Join MME to MHW
+mme_mhw <- mme %>% 
   left_join(site_MME_MHW_summary, by = c("lon" = "lon_mme", "lat" = "lat_mme",
                                          "year", "Ecoregion", "Location", 
                                          "Monitoring series", "EvenStart", "Damaged qualitative")) %>% 
   dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
                 `Damaged percentage (mean)` = `Damaged percentage.y`)
 
+# Extract only records with regular monitoring
+mme_reg <- filter(mme_mhw, selected_5 %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring") | Ecoregion == "Alboran Sea")
+
+# Create data.frames based on four pre-determined filter columns
+mme_Plot_1A <- filter(mme_mhw, Plot_1A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+mme_Plot_1B <- filter(mme_mhw, Plot_1B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+mme_Plot_2A <- filter(mme_mhw, Plot_2A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+mme_Plot_2B <- filter(mme_mhw, Plot_2B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+
 # List of grouped species
 spp_1 <- filter(species_groups, group == "1")
 spp_2 <- filter(species_groups, group == "2")
 spp_3 <- filter(species_groups, group == "3")
 
-# Filter out regularly montiored sites by species groups
+# Filter out regularly monitored sites by species groups
 mme_reg_1 <-  filter(mme_reg, Species %in% spp_1$species)
 mme_reg_2 <-  filter(mme_reg, Species %in% spp_2$species)
 mme_reg_3 <-  filter(mme_reg, Species %in% spp_3$species)
@@ -168,8 +177,22 @@ scatter_spp_1_2_3 <- species_scatter(rbind(mme_reg_1, mme_reg_2, mme_reg_3), "Gr
 ggsave("figures/scatter_spp_1_2_3.png", scatter_spp_1_2_3, height = 6, width = 8)
 
 # Scatterplot for all species
-scatter_spp_all <- species_scatter(mme_reg, "FINAL VERSION_TO_CHECK All species ")
+scatter_spp_all <- species_scatter(mme_reg, "All species ")
 ggsave("figures/fig_3.png", scatter_spp_all, height = 6, width = 8)
+
+# Plots for the four pre-determined columns
+scatter_Plot_1A <- species_scatter(mme_Plot_1A, "Plot 1A ")
+ggsave("figures/Plot_1A.png", scatter_Plot_1A, height = 6, width = 8)
+write_csv(mme_Plot_1A, "data/MME_MHW_Plot_1A.csv")
+scatter_Plot_1B <- species_scatter(mme_Plot_1B, "Plot 1B ")
+ggsave("figures/Plot_1B.png", scatter_Plot_1B, height = 6, width = 8)
+write_csv(mme_Plot_1B, "data/MME_MHW_Plot_1B.csv")
+scatter_Plot_2A <- species_scatter(mme_Plot_2A, "Plot 2A ")
+ggsave("figures/Plot_2A.png", scatter_Plot_2A, height = 6, width = 8)
+write_csv(mme_Plot_2A, "data/MME_MHW_Plot_2A.csv")
+scatter_Plot_2B <- species_scatter(mme_Plot_2B, "Plot 2B ")
+ggsave("figures/Plot_2B.png", scatter_Plot_2B, height = 6, width = 8)
+write_csv(mme_Plot_2B, "data/MME_MHW_Plot_2B.csv")
 
 # Correlation results
 mme_reg %>% 

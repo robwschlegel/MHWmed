@@ -35,7 +35,7 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
          `Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Upper Depth`))),
          `Mortality Lower Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Lower Depth`))),
          `Mortality Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Upper Depth`)))) %>% 
-  dplyr::select(year:`Damaged qualitative`, contains(c("selected", "same as"))) %>%
+  dplyr::select(year:`Damaged qualitative`, contains(c("selected", "same as", "Plot_"))) %>%
   # filter(`Damaged qualitative` != "No", # Filter out 'No' values
   # `Upper Depth` <= 15,
   # Species != "Pinna nobilis") %>% 
