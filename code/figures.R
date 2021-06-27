@@ -145,6 +145,8 @@ mme_Plot_1A <- filter(mme_mhw, Plot_1A %in% c("2015_MHW", "2016_MHW", "2017_MHW"
 mme_Plot_1B <- filter(mme_mhw, Plot_1B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
 mme_Plot_2A <- filter(mme_mhw, Plot_2A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
 mme_Plot_2B <- filter(mme_mhw, Plot_2B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+mme_Plot_3A <- filter(mme_mhw, Plot_3A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+mme_Plot_3B <- filter(mme_mhw, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
 
 # List of grouped species
 spp_1 <- filter(species_groups, group == "1")
@@ -193,6 +195,12 @@ write_csv(mme_Plot_2A, "data/MME_MHW_Plot_2A.csv")
 scatter_Plot_2B <- species_scatter(mme_Plot_2B, "Plot 2B ")
 ggsave("figures/Plot_2B.png", scatter_Plot_2B, height = 6, width = 8)
 write_csv(mme_Plot_2B, "data/MME_MHW_Plot_2B.csv")
+scatter_Plot_3A <- species_scatter(mme_Plot_3A, "Plot 3A ")
+ggsave("figures/Plot_3A.png", scatter_Plot_3A, height = 6, width = 8)
+write_csv(mme_Plot_3A, "data/MME_MHW_Plot_3A.csv")
+scatter_Plot_3B <- species_scatter(mme_Plot_3B, "Plot 3B ")
+ggsave("figures/Plot_3B.png", scatter_Plot_3B, height = 6, width = 8)
+write_csv(mme_Plot_3B, "data/MME_MHW_Plot_3B.csv")
 
 # Correlation results
 mme_reg %>% 

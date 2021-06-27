@@ -949,7 +949,12 @@ species_scatter <- function(df, spp_title){
     filter(name == "icum")
   # Get Med total
   df_med <- df_long %>% 
-    mutate(Ecoregion = "Mediterranean")
+    group_by(Ecoregion) %>% 
+    mutate(n_dat = n()) %>% 
+    ungroup() %>% 
+    filter(n_dat >= 50) %>% 
+    mutate(Ecoregion = "Mediterranean",
+           n_dat = NULL)
   # Combine and order factor for plotting
   df_all <- rbind(df_long, df_med) %>% 
     mutate(Ecoregion = factor(Ecoregion, 
