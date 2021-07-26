@@ -161,6 +161,22 @@ load("data/MHW_cat_summary_annual.RData")
 load("data/MHW_cat_summary_annual_JJASON.RData")
 
 
+# Extreme heat days and anoms ---------------------------------------------
+
+# Calculations for the days above the 90th percentile and the total anomalies
+doParallel::registerDoParallel(cores = 15)
+# system.time(
+# MHW_clim_pixel_annual <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T)
+# ) # 316 seconds on 15 cores
+# save(MHW_clim_pixel_annual, file = "data/MHW_clim_pixel_annual.RData")
+
+# The same for JJASON
+# system.time(
+# MHW_clim_pixel_annual_JJASON <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T, sub_months = seq(6, 11))
+# ) # 283 seconds
+# save(MHW_clim_pixel_annual_JJASON, file = "data/MHW_clim_pixel_annual_JJASON.RData")
+
+
 # Summary figures ---------------------------------------------------------
 
 ## NB: These require objects to be in the environment that are added by the above code
@@ -383,23 +399,27 @@ ggsave("figures/MHW_cat_historic_quad.png", total_summary_quad, height = 9, widt
 # MME vs MHW pixels -------------------------------------------------------
 
 # Match pixels
-lon_lat_match <- grid_match(distinct(dplyr::select(mme_selected_4, lon, lat)), 
+lon_lat_match <- grid_match(distinct(dplyr::select(mme, lon, lat)), 
                             distinct(dplyr::select(med_regions, lon, lat))) %>% 
   dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
   left_join(med_regions, by = c("lon_sst" = "lon", "lat_sst" = "lat")) %>% 
   filter(dist < 10)
 
 # Create full annual grid
-lon_lat_match_full_grid <- expand_grid(year = seq(2015, 2019), lon_lat_match) 
+lon_lat_match_full_grid <- expand_grid(year = seq(1982, 2019), lon_lat_match) 
 
 # Extract MHW results for paired pixels
 doParallel::registerDoParallel(cores = 15)
-site_event_cat <- plyr::ddply(lon_lat_match, c("lat_sst"), load_event_cat, .parallel = T)
+system.time(
+site_event_cat <- plyr::ddply(lon_lat_match, c("lon_mme", "lat_mme"), load_event_cat, .parallel = T)
+) # 107 seconds
+
+# Load annual pixel clim summaries
+load("data/MHW_clim_pixel_annual_JJASON.RData")
 
 # Calculate annual MHW stats per pixel
 site_MHW_summary <- site_event_cat %>% 
-  dplyr::rename(lon_sst = lon) %>% 
-  dplyr::select(-lat) %>% 
+  dplyr::rename(lon_sst = lon, lat_sst = lat) %>%
   mutate(year = lubridate::year(date_peak),
          month = lubridate::month(date_peak)) %>%
   filter(month %in% seq(6, 11)) %>% 
@@ -407,10 +427,16 @@ site_MHW_summary <- site_event_cat %>%
   summarise(count_MHW = n(),
             duration = sum(duration, na.rm = T),
             # imean = round(mean(intensity_mean, na.rm = T), 2),
-            icum = round(sum(intensity_cumulative, na.rm = T)), .groups = "drop")
+            icum = round(sum(intensity_cumulative, na.rm = T)), .groups = "drop") %>% 
+  right_join(lon_lat_match_full_grid, by = c("year", "lon_sst", "lat_sst")) %>% 
+  left_join(MHW_clim_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
+  dplyr::select(lon_sst:icum, e_days, sum_anom) %>% 
+  replace(is.na(.), 0) %>%  # Fill in the no MHW rows with 0's
+  distinct() %>% 
+  dplyr::arrange(lon_sst, lat_sst, year)
 
 # Calculate annual MME stats per site
-site_MME_summary <- mme_selected_4 %>% 
+site_MME_summary <- mme %>% 
   group_by(Ecoregion, year, `Monitoring series`, `Damaged qualitative`, EvenStart, Location, lon, lat) %>% 
   summarise(`Damaged percentage` = round(mean(`Damaged percentage`, na.rm = T)),
             count_MME = n(), .groups = "drop") %>% 
@@ -425,16 +451,16 @@ site_MME_MHW_summary <- lon_lat_match_full_grid %>%
 write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 
 # Scatterplot of MME and MHW count summaries
-# scatter_MME_MHW_site <- site_MME_MHW_summary %>% 
-#   na.omit() %>% 
-#   pivot_longer(count_MHW:icum) %>% 
+# scatter_MME_MHW_site <- site_MME_MHW_summary %>%
+#   na.omit() %>%
+#   pivot_longer(count_MHW:icum) %>%
 #   ggplot(aes(x = value, y = count_MME)) +
 #   geom_point(aes(colour = Ecoregion)) +
 #   geom_smooth(aes(colour = Ecoregion), method = "lm", se = F) +
 #   labs(y = "MME count per site/year", x = NULL,
 #        title = "MME count per site and year compared to MHW metrics (JJASON)") +
 #   facet_wrap(~name, scales = "free_x", strip.position = "bottom") +
-#   theme(legend.position = "bottom", 
+#   theme(legend.position = "bottom",
 #         strip.placement = "outside", strip.background = element_blank())
 # scatter_MME_MHW_site
 
@@ -556,8 +582,6 @@ write_csv(site_MME_MHW_summary, "data/site_MME_MHW_summary.csv")
 
 # TODO: Find a way to show thresholds above which a MHW metric relates to rapid increase in MME
 # e.g. The threshold of 3 MHW vs 2 MHW
-# Scatterplots with icum for all species and global
-# Also ecoregions
 
 # Calculate the r and p values
 

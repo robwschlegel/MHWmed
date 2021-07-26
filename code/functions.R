@@ -168,7 +168,7 @@ load_cat_daily <- function(file_name, lon_range = NA){
 # Load MHW results per pixel
 load_event_cat <- function(df){
   
-  lat_pixel <- df$lat_sst[1] 
+  lat_pixel <- df$lat_sst
   lon_pixel <- df$lon_sst
   
   # Load data
@@ -337,6 +337,36 @@ cat_summary_calc <- function(df_pixel, df_daily, JJASON = F){
   # Exit
   return(cat_summary_annual)
 }
+
+# Function for calculating "extreme heat" days and total anomalies
+clim_pixel_annual_calc <- function(file_name, sub_months = seq(1, 12)){
+  
+  # Load data
+  res_full <- readRDS(file_name)
+  
+  # Extract only daily cat values
+  event_clim <- res_full %>% 
+    dplyr::select(-cat) %>% 
+    unnest(event) %>% 
+    filter(row_number() %% 2 == 1) %>% 
+    unnest(event) %>% 
+    ungroup() %>%
+    filter(!is.na(t)) %>%
+    mutate(year = lubridate::year(t),
+           month = lubridate::month(t, label = F))
+  
+  # Annual summary of 90th perc days and sum of anoms
+  res <- event_clim %>% 
+    filter(month %in% sub_months) %>% 
+    group_by(lon, lat, year) %>% 
+    summarise(e_days = sum(threshCriterion), 
+              sum_anom = sum(temp-seas), .groups = "drop")
+  
+  # Clean up and exit
+  rm(res_full, event_clim); gc()
+  return(res)
+}
+
 
 # An in between function to help with RAM use
 region_proc <- function(file_name, region_coords_sub){

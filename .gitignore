@@ -14,13 +14,15 @@ data/MME_MHW_Plot_3A.csv
 data/MME_MHW_Plot_3B.csv
 data/MME_MHW.csv
 data/Cnidaria_CatalanCoast.csv
+data/MHW_cat_daily_annual.RData
 data/MHW_cat_pixel_monthly.RData
 data/MHW_cat_pixel_annual.RData
-data/MHW_cat_daily_annual.RData
+data/MHW_clim_pixel_annual.RData
 data/MHW_cat_summary_annual.RData
 data/MHW_cat_daily_annual_JJASON.RData
 data/MHW_cat_pixel_annual_JJASON.RData
 data/MHW_cat_summary_annual_JJASON.RData
+data/MHW_clim_pixel_annual_JJASON.RData
 data/MME_MHWs_relationship_species_selection.csv
 data/UPDATED_MassMortalityEvents15-19_30032021.csv
 data/Collaborative_tasks_version_database_protected - MME dataset.csv
