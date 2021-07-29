@@ -1,10 +1,6 @@
 # code/MHW_summary.R
 # This script creates annual and total summaries from the MHW Med results
 
-# TODO: Calculate "extreme heat" days as just the days above the 90th thresh, regardless of consecutive days
-# For MHW-MME comparisons, average all species records per pixel to find damage. 
-# Or average per species, so multiple records per pixel.
-
 # Revise text for section 2
 # Add text for section 4
 # https://docs.google.com/document/d/1b4YRlkFddQusDwBzYxeY7vmIKQDymL8hwDQtH11GKfE/edit

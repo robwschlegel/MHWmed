@@ -244,10 +244,10 @@ panel_A <- ggplot(pixel_pentad, aes(x = lon, y = lat)) +
   geom_tile(aes(fill = temp_diff), colour = NA) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
   # scale_fill_manual("Category", values = MHW_colours) +
-  scale_fill_gradient2(low = "blue", high = "red", 
-                       breaks = c(0, 0.5, 1.0, 1.5, 2.0),
+  scale_fill_gradient2(low = "yellow", mid = "orange", high = "red",
+                       breaks = c(0.9, 1.2, 1.5), midpoint = 1.1) +#,
                        # labels = c("0", "0.5", "1.0", "1.5", "2.0")) +
-                       labels = c("0", "0.5", "1.0", "1.5", "2.0")) +
+                       # labels = c("0", "0.5", "1.0", "1.5", "2.0")) +
   coord_cartesian(expand = F, 
                   xlim = c(min(med_regions$lon), max(med_regions$lon)),
                   ylim = c(min(med_regions$lat), max(med_regions$lat))) +
@@ -258,7 +258,7 @@ panel_A <- ggplot(pixel_pentad, aes(x = lon, y = lat)) +
   theme(plot.title = ggtext::element_markdown(),
         panel.border = element_rect(colour = "black", fill = NA),
         # legend.position = "bottom",
-        legend.position = c(0.9, 0.8),
+        legend.position = c(0.9, 0.79),
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
         panel.background = element_rect(fill = "grey90"))
@@ -297,34 +297,46 @@ panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
         panel.background = element_rect(fill = "grey90"))
 # panel_B
 
-## C: Map of areas affected by most intense MHWs 2015-2019
+## C: Map of difference in cat 2+ days between first and last pentad
 # Prep data
-MHW_cat_pixel_annual_sub <- MHW_cat_pixel_annual %>%
-  filter(year %in% seq(2015, 2019))
+pixel_cat_pentad <- MHW_cat_pixel_annual %>% 
+  right_join(med_regions, by = c("lon", "lat")) %>%
+  group_by(lon, lat, year, month) %>% 
+  summarise(cat2 = sum(`II Strong`, `III Severe`, `IV Extreme`), .groups = "drop") %>% 
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(lon, lat, pentad) %>% 
+  summarise(cat2 = mean(cat2, na.rm = T), .groups = "drop") %>% 
+  pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "cat2") %>% 
+  mutate(`(1981,1986]` = replace_na(`(1981,1986]`, 0)) %>% 
+  mutate(cat2_diff = `(2014,2019]` - `(1981,1986]`)
 # Plot data
-panel_C <- MHW_cat_pixel_annual_sub %>%
-  group_by(lon, lat) %>%
-  summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>%
-  mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
-  ggplot(aes(x = lon, y = lat)) +
+panel_C <- pixel_cat_pentad %>%
+  # group_by(lon, lat) %>%
+  # summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>%
+  # mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
+  ggplot() +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-  geom_tile(aes(fill = category), colour = NA, show.legend = F) +
+  geom_tile(aes(x = lon, y = lat, fill = cat2_diff), colour = NA, show.legend = T) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
                fill = "grey70", colour = "black") +
-  scale_fill_manual("Category", values = MHW_colours) +
+  geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
+  # scale_fill_manual("Category", values = MHW_colours) +
+  scale_fill_gradient2(low = "darkorchid", mid = "white", high = "hotpink", midpoint = 0) +#,
+                       # breaks = c(0.9, 1.2, 1.5), midpoint = 1.1) +
   # scale_y_continuous(breaks = NULL) +
   # scale_x_continuous(breaks = NULL) +
-  coord_cartesian(expand = F,
-                  xlim = c(min(med_regions$lon), max(med_regions$lon)),
-                  ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  coord_sf(expand = F,
+           xlim = c(min(med_regions$lon), max(med_regions$lon)),
+           ylim = c(min(med_regions$lat), max(med_regions$lat))) +
   # theme_void() +
   # theme_bw() +
-  labs(title = "__(c)__   Highest MHW categories from 2015-2019",
-       y = "Latitude (°N)", x = "Longitude (°E)") +
+  labs(title = "__(c)__   Category II+ MHW day difference [2015 to 2019] minus [1982 to 1986]",
+       y = "Latitude (°N)", x = "Longitude (°E)", fill = "Difference \n(days)") +
   # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         plot.title = ggtext::element_markdown(),
-        legend.position = "bottom",
+        legend.position = c(0.9, 0.74),
+        # legend.position = "bottom",
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
         panel.background = element_rect(fill = "grey90"))
@@ -334,15 +346,17 @@ panel_C <- MHW_cat_pixel_annual_sub %>%
 # Load data
 load("data/MHW_cat_summary_annual.RData")
 OISST_global <- readRDS("data/OISST_cat_daily_1992-2018_total.Rds") %>% 
+  filter(category != "I Moderate") %>% 
   group_by(t) %>% 
   mutate(cat_n_prop_stack = cumsum(cat_n_prop),
          first_n_cum_prop_stack = cumsum(first_n_cum_prop)) %>% 
   filter(category == "IV Extreme")
 # Prep data
 cat_daily_mean <- MHW_cat_summary_annual %>%
+  filter(category != "I Moderate") %>% 
   group_by(year, category) %>%
   summarise(cat_n_prop_mean = mean(cat_n_prop, na.rm = T),
-            cat_n_cum_prop = max(cat_n_cum_prop, na.rm = T), .groups = "drop")
+            cat_n_cum_prop = max(cat_n_cum_prop, na.rm = T), .groups = "drop") # TODO: Only show cat 2+
 cat_pentad <- cat_daily_mean %>% 
   group_by(year) %>% 
   summarise(cat_n_cum_prop_sum = sum(cat_n_cum_prop, na.rm = T), .groups = "drop") %>% 
@@ -363,16 +377,16 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = cat_n_cum_prop)) +
              shape = 21, fill = "grey", show.legend = F) +
   scale_fill_manual("Category", values = MHW_colours) +
   scale_colour_manual("Category", values = MHW_colours) +
-  scale_y_continuous(limits = c(0, 100),
-                     breaks = seq(20, 80, length.out = 4)) +
+  scale_y_continuous(limits = c(0, 20),
+                     breaks = seq(5, 15, length.out = 3)) +
   scale_x_continuous(breaks = seq(1984, 2019, 7)) +
   guides(pattern_colour = FALSE, colour = FALSE) +
-  labs(title = "__(d)__   Surface area of Med affected by MHWs",
+  labs(title = "__(d)__   Surface area affected by category II+ MHWs",
        y = "Cover (%)", x = "Year") +
   coord_cartesian(expand = F) +
   theme(plot.title = ggtext::element_markdown(),
         panel.border = element_rect(colour = "black", fill = NA),
-        legend.position = c(0.1, 0.8),
+        legend.position = c(0.1, 0.85),
         axis.title = element_text(size = 12),
         axis.text = element_text(size = 10),
         legend.title = element_text(size = 14),
@@ -383,3 +397,23 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = cat_n_cum_prop)) +
 manu_fig_1 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D)
 ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 16)
 
+
+# Manuscript figure 4 -----------------------------------------------------
+
+# Scatterplot
+# Keep only Med panel
+# Show taxa as the colour of dots
+# Use all data points. No averaging per pixel.
+# Create multiple panels: One with no averaging, and others with layers of averaging
+
+# TODO: Look into what relationship may exist between the vertical movement of the dots per year
+# E.g. the range of MHW days in a year is not large, but MME damage is
+# What is it that drives the dots up within a narrow x-axis range? Species? Location?
+
+# TODO: Change dot colour from year to taxa
+
+# TODO: Average results per pixel for all records
+
+## Combine and save
+manu_fig_4 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D)
+ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 16)
