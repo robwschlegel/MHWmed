@@ -137,16 +137,24 @@ mme_mhw <- mme %>%
                 `Damaged percentage (mean)` = `Damaged percentage.y`)
 
 # Extract only records with regular monitoring
-mme_reg <- filter(mme_mhw, selected_5 %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
-  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring") | Ecoregion == "Alboran Sea")
+mme_reg <- mme_mhw %>% 
+  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring") | Ecoregion == "Alboran Sea") %>% 
+  group_by(year, Ecoregion, lon_sst, lat_sst, Taxa, Species) %>% summarise_all(mean, na.rm = T) 
+  #filter(selected_5 %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
 
 # Create data.frames based on four pre-determined filter columns
-mme_Plot_1A <- filter(mme_mhw, Plot_1A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
-mme_Plot_1B <- filter(mme_mhw, Plot_1B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
-mme_Plot_2A <- filter(mme_mhw, Plot_2A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
-mme_Plot_2B <- filter(mme_mhw, Plot_2B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
-mme_Plot_3A <- filter(mme_mhw, Plot_3A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
-mme_Plot_3B <- filter(mme_mhw, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+mme_Plot_1A <- filter(mme_mhw, Plot_1A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  group_by(year, Ecoregion, lon_sst, lat_sst, Taxa, Species) %>% summarise_all(mean, na.rm = T)
+mme_Plot_1B <- filter(mme_mhw, Plot_1B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  group_by(year, Ecoregion, lon_sst, lat_sst, Taxa, Species) %>% summarise_all(mean, na.rm = T)
+mme_Plot_2A <- filter(mme_mhw, Plot_2A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  group_by(year, Ecoregion, lon_sst, lat_sst, Taxa, Species) %>% summarise_all(mean, na.rm = T)
+mme_Plot_2B <- filter(mme_mhw, Plot_2B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  group_by(year, Ecoregion, lon_sst, lat_sst, Taxa, Species) %>% summarise_all(mean, na.rm = T)
+mme_Plot_3A <- filter(mme_mhw, Plot_3A %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  group_by(year, Ecoregion, lon_sst, lat_sst, Taxa, Species) %>% summarise_all(mean, na.rm = T)
+mme_Plot_3B <- filter(mme_mhw, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  group_by(year, Ecoregion, lon_sst, lat_sst, Taxa, Species) %>% summarise_all(mean, na.rm = T)
 
 # List of grouped species
 spp_1 <- filter(species_groups, group == "1")
@@ -218,6 +226,160 @@ mme_reg_sub <- mme_reg %>%
 write_csv(mme_reg_sub, "data/MME_NW_SW.csv")
 
 
-# Figure 4 ----------------------------------------------------------------
+# Manuscript figure 1 -----------------------------------------------------
 
+## A: Map of temperature difference mean 1982-1986 vs 2015-2019
+# Load data
+load("data/MHW_clim_pixel_annual.RData")
+# Prep data
+pixel_pentad <- MHW_clim_pixel_annual %>% 
+  right_join(med_regions, by = c("lon", "lat")) %>% 
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(lon, lat, pentad) %>% 
+  summarise(temp = mean(temp, na.rm = T), .groups = "drop") %>% 
+  pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "temp") %>% 
+  mutate(temp_diff = `(2014,2019]` - `(1981,1986]`)
+# Plot data
+panel_A <- ggplot(pixel_pentad, aes(x = lon, y = lat)) +
+  geom_tile(aes(fill = temp_diff), colour = NA) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+  # scale_fill_manual("Category", values = MHW_colours) +
+  scale_fill_gradient2(low = "blue", high = "red", 
+                       breaks = c(0, 0.5, 1.0, 1.5, 2.0),
+                       # labels = c("0", "0.5", "1.0", "1.5", "2.0")) +
+                       labels = c("0", "0.5", "1.0", "1.5", "2.0")) +
+  coord_cartesian(expand = F, 
+                  xlim = c(min(med_regions$lon), max(med_regions$lon)),
+                  ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  # theme_void() +
+  labs(title = "__(a)__   Temperature difference [2015 to 2019] minus [1982 to 1986]",
+       y = "Latitude (°N)", x = "Longitude (°E)", fill = "Temp. (°C)") +
+  # guides(fill = guide_legend(override.aes = list(size = 10))) +
+  theme(plot.title = ggtext::element_markdown(),
+        panel.border = element_rect(colour = "black", fill = NA),
+        # legend.position = "bottom",
+        legend.position = c(0.9, 0.8),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        panel.background = element_rect(fill = "grey90"))
+# panel_A
+
+## B: Barplots of mean Med SST anom with ~5 year average segments
+# Prep data
+med_annual <- MHW_clim_pixel_annual %>% 
+  right_join(med_regions, by = c("lon", "lat")) %>% 
+  group_by(year) %>% 
+  summarise(temp = mean(temp, na.rm = T), .groups = "drop") %>% 
+  mutate(anom = temp - mean(temp))
+med_pentad <- med_annual %>% 
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(pentad) %>% 
+  summarise(anom_pentad = mean(anom, na.rm = T), .groups = "drop") %>%
+  separate(pentad, into = c("start_year", "end_year"), sep = ",", remove = F) %>% 
+  mutate(start_year = as.numeric(sub("[(]", "", start_year)) + 1,
+         end_year = as.numeric(sub("]", "", end_year)))
+# Plot data
+panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
+  geom_bar(aes(fill = anom), stat = "identity", width = 1, show.legend = F) +
+  geom_hline(yintercept = 0) +
+  geom_segment(data = med_pentad, size = 2, lineend = "round",
+               aes(x = start_year, xend = end_year, 
+                   y = anom_pentad, yend = anom_pentad)) +
+  scale_fill_gradient2(low = "blue", high = "red") +
+  scale_x_continuous(breaks = seq(1984, 2019, 7), expand = c(0, 0)) +
+  labs(title = "__(b)__   Annual SST anomalies (1982 - 2019)",
+       y = "Temperature (°C)", x = "Year") +
+  theme(plot.title = ggtext::element_markdown(),
+        panel.border = element_rect(colour = "black", fill = NA),
+        # legend.position = "bottom",
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        panel.background = element_rect(fill = "grey90"))
+# panel_B
+
+## C: Map of areas affected by most intense MHWs 2015-2019
+# Prep data
+MHW_cat_pixel_annual_sub <- MHW_cat_pixel_annual %>%
+  filter(year %in% seq(2015, 2019))
+# Plot data
+panel_C <- MHW_cat_pixel_annual_sub %>%
+  group_by(lon, lat) %>%
+  summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>%
+  mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
+  ggplot(aes(x = lon, y = lat)) +
+  # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
+  geom_tile(aes(fill = category), colour = NA, show.legend = F) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
+               fill = "grey70", colour = "black") +
+  scale_fill_manual("Category", values = MHW_colours) +
+  # scale_y_continuous(breaks = NULL) +
+  # scale_x_continuous(breaks = NULL) +
+  coord_cartesian(expand = F,
+                  xlim = c(min(med_regions$lon), max(med_regions$lon)),
+                  ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  # theme_void() +
+  # theme_bw() +
+  labs(title = "__(c)__   Highest MHW categories from 2015-2019",
+       y = "Latitude (°N)", x = "Longitude (°E)") +
+  # guides(fill = guide_legend(override.aes = list(size = 10))) +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        plot.title = ggtext::element_markdown(),
+        legend.position = "bottom",
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        panel.background = element_rect(fill = "grey90"))
+# panel_C
+
+## D: Barplot of Med surface area affected by Cat 2+ MHWs 
+# Load data
+load("data/MHW_cat_summary_annual.RData")
+OISST_global <- readRDS("data/OISST_cat_daily_1992-2018_total.Rds") %>% 
+  group_by(t) %>% 
+  mutate(cat_n_prop_stack = cumsum(cat_n_prop),
+         first_n_cum_prop_stack = cumsum(first_n_cum_prop)) %>% 
+  filter(category == "IV Extreme")
+# Prep data
+cat_daily_mean <- MHW_cat_summary_annual %>%
+  group_by(year, category) %>%
+  summarise(cat_n_prop_mean = mean(cat_n_prop, na.rm = T),
+            cat_n_cum_prop = max(cat_n_cum_prop, na.rm = T), .groups = "drop")
+cat_pentad <- cat_daily_mean %>% 
+  group_by(year) %>% 
+  summarise(cat_n_cum_prop_sum = sum(cat_n_cum_prop, na.rm = T), .groups = "drop") %>% 
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(pentad) %>% 
+  summarise(cat_n_cum_prop_pentad = mean(cat_n_cum_prop_sum, na.rm = T), .groups = "drop") %>%
+  separate(pentad, into = c("start_year", "end_year"), sep = ",", remove = F) %>% 
+  mutate(start_year = as.numeric(sub("[(]", "", start_year)) + 1,
+         end_year = as.numeric(sub("]", "", end_year)))
+# Plot data
+panel_D <- ggplot(cat_daily_mean, aes(x = year, y = cat_n_cum_prop)) +
+  geom_bar(aes(fill = category), stat = "identity", show.legend = T,
+           position = position_stack(reverse = TRUE), width = 1) +
+  geom_segment(data = cat_pentad, size = 2, lineend = "round",
+               aes(x = start_year, xend = end_year, 
+                   y = cat_n_cum_prop_pentad, yend = cat_n_cum_prop_pentad)) +
+  geom_point(data = OISST_global, aes(x = t, y = cat_n_prop_stack), 
+             shape = 21, fill = "grey", show.legend = F) +
+  scale_fill_manual("Category", values = MHW_colours) +
+  scale_colour_manual("Category", values = MHW_colours) +
+  scale_y_continuous(limits = c(0, 100),
+                     breaks = seq(20, 80, length.out = 4)) +
+  scale_x_continuous(breaks = seq(1984, 2019, 7)) +
+  guides(pattern_colour = FALSE, colour = FALSE) +
+  labs(title = "__(d)__   Surface area of Med affected by MHWs",
+       y = "Cover (%)", x = "Year") +
+  coord_cartesian(expand = F) +
+  theme(plot.title = ggtext::element_markdown(),
+        panel.border = element_rect(colour = "black", fill = NA),
+        legend.position = c(0.1, 0.8),
+        axis.title = element_text(size = 12),
+        axis.text = element_text(size = 10),
+        legend.title = element_text(size = 14),
+        legend.text = element_text(size = 12))
+# panel_D
+
+## Combine and save
+manu_fig_1 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D)
+ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 16)
 

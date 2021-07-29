@@ -359,7 +359,8 @@ clim_pixel_annual_calc <- function(file_name, sub_months = seq(1, 12)){
   res <- event_clim %>% 
     filter(month %in% sub_months) %>% 
     group_by(lon, lat, year) %>% 
-    summarise(e_days = sum(threshCriterion), 
+    summarise(temp = mean(temp, na.rm = T),
+              e_days = sum(threshCriterion), 
               sum_anom = sum(temp-seas), .groups = "drop")
   
   # Clean up and exit
@@ -975,8 +976,8 @@ bar_dur_fig <- function(df, title_bit){
 species_scatter <- function(df, spp_title){
   # Pivot icum to long for plotting
   df_long <- df %>% 
-    pivot_longer(duration:icum) %>% 
-    filter(name == "icum")
+    pivot_longer(duration:sum_anom) %>% 
+    filter(name == "e_days") # Pick the variable for the X-axis
   # Get Med total
   df_med <- df_long %>% 
     group_by(Ecoregion) %>% 
@@ -994,29 +995,31 @@ species_scatter <- function(df, spp_title){
                                          "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
                                          "Aegean Sea", "Levantine Sea")))
   # Get the depths at or above 15 m
-  df_15 <- df_all %>%
-    filter(`Upper Depth` <= 15)
+  # df_15 <- df_all %>%
+    # filter(`Upper Depth` <= 15)
   # Create labels for count of observations and correlations per ecoregions
   df_label <- df_all %>% 
     # na.omit() %>% # Don't do this here
     group_by(Ecoregion) %>% 
     summarise(count = n(),
-              r_icum = round(cor.test(`Damaged percentage`, value)$estimate, 2),
-              p_icum = round(cor.test(`Damaged percentage`, value)$p.value, 2),
+              r_val = round(cor.test(`Damaged percentage`, value)$estimate, 2),
+              p_val = round(cor.test(`Damaged percentage`, value)$p.value, 2),
               x_point = sum(range(value, na.rm = T))/2, .groups = "drop")
   # The figure
   ggplot(data = df_all, aes(x = value, y = `Damaged percentage`)) +
-    geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
+    # geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
     geom_smooth(colour = "black", method = "lm", se = F) +
     geom_point(aes(colour = as.character(year))) +
     geom_label(data = df_label, aes(y = 10, x = x_point, label = paste0("n = ",count)), alpha = 0.6) +
     geom_label(data = df_label, alpha = 0.6, 
-               aes(y = 90, x = x_point, label = paste0("r = ",r_icum,", p = ",p_icum))) +
+               aes(y = 90, x = x_point, label = paste0("r = ",r_val,", p = ",p_val))) +
     guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
     scale_colour_brewer(palette = "Set1") +
-    labs(y = "MME damage (%)", x = NULL, colour = "Year",
-         title = paste0(spp_title, "MME damage vs MHW cumulative intensity (JJASON)"),
-         subtitle = "Solid lines for all depths and dashed lines shallower than 15 m") +
+    labs(y = "MME damage (%)", colour = "Year",
+         x = "Days above 90th percentile threshold",
+         # title = paste0(spp_title, "MME damage vs MHW cumulative intensity (JJASON)"),
+         title = paste0(spp_title, "MME damage vs days above 90th perc. thresh. (JJASON)")) +#,
+         # subtitle = "Solid lines for all depths and dashed lines shallower than 15 m") +
     facet_wrap(~Ecoregion, scales = "free_x") +#, strip.position = "bottom") +
     scale_y_continuous(limits = c(-2, max(df_all$`Damaged percentage`, na.rm = T)+2)) +
     # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +

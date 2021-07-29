@@ -165,16 +165,16 @@ load("data/MHW_cat_summary_annual_JJASON.RData")
 
 # Calculations for the days above the 90th percentile and the total anomalies
 doParallel::registerDoParallel(cores = 15)
-# system.time(
-# MHW_clim_pixel_annual <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T)
-# ) # 316 seconds on 15 cores
-# save(MHW_clim_pixel_annual, file = "data/MHW_clim_pixel_annual.RData")
+system.time(
+MHW_clim_pixel_annual <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T)
+) # 358 seconds on 15 cores
+save(MHW_clim_pixel_annual, file = "data/MHW_clim_pixel_annual.RData")
 
 # The same for JJASON
-# system.time(
-# MHW_clim_pixel_annual_JJASON <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T, sub_months = seq(6, 11))
-# ) # 283 seconds
-# save(MHW_clim_pixel_annual_JJASON, file = "data/MHW_clim_pixel_annual_JJASON.RData")
+system.time(
+MHW_clim_pixel_annual_JJASON <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T, sub_months = seq(6, 11))
+) # 308 seconds
+save(MHW_clim_pixel_annual_JJASON, file = "data/MHW_clim_pixel_annual_JJASON.RData")
 
 
 # Summary figures ---------------------------------------------------------
