@@ -356,7 +356,7 @@ cat_daily_mean <- MHW_cat_summary_annual %>%
   filter(category != "I Moderate") %>% 
   group_by(year, category) %>%
   summarise(cat_n_prop_mean = mean(cat_n_prop, na.rm = T),
-            cat_n_cum_prop = max(cat_n_cum_prop, na.rm = T), .groups = "drop") # TODO: Only show cat 2+
+            cat_n_cum_prop = max(cat_n_cum_prop, na.rm = T), .groups = "drop")
 cat_pentad <- cat_daily_mean %>% 
   group_by(year) %>% 
   summarise(cat_n_cum_prop_sum = sum(cat_n_cum_prop, na.rm = T), .groups = "drop") %>% 
@@ -414,6 +414,94 @@ ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 16)
 
 # TODO: Average results per pixel for all records
 
+# Load MME MHW pairing data
+site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
+
+# Load species grouping sheet
+species_groups <- read_csv("data/MME_MHWs_relationship_species_selection.csv") %>% 
+  `colnames<-`(c("species", "damage", "group", "group_single"))
+
+# Join with MHW data to get pixel lon/lat
+mme_mhw <- mme %>% 
+  left_join(site_MME_MHW_summary, by = c("lon" = "lon_mme", "lat" = "lat_mme",
+                                         "year", "Ecoregion", "Location", 
+                                         "Monitoring series", "EvenStart", "Damaged qualitative")) %>% 
+  dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
+                `Damaged percentage (mean)` = `Damaged percentage.y`)
+
+
+# Extract only records with regular monitoring
+mme_reg <- mme_mhw %>% 
+  filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring"))# | Ecoregion == "Alboran Sea") #%>% 
+  # group_by(year, Ecoregion, lon_sst, lat_sst, Tax) %>% summarise_all(mean, na.rm = T) 
+
+# Function for showing scatterplots for full med with different rounding methods
+species_scatter_full <- function(df, round_type){
+  # Round data accordingly
+  if(round_type == "none"){
+    df_round <- df
+    plot_title <- "Regular monitoring; full records"
+  } else if(round_type == "species"){
+    df_round <- df %>% 
+      group_by(lon_sst, lat_sst, year, Taxa, species) %>% 
+      summarise(`Damaged percentage` = mean(`Damaged percentage`),
+                e_days = mean(e_days, na.rm = T), .groups = "drop")
+    plot_title <- "Regular monitoring; average per species per pixel per year"
+  } else if(round_type == "Taxa"){
+    df_round <- df %>% 
+      group_by(lon_sst, lat_sst, year, Taxa) %>% 
+      summarise(`Damaged percentage` = mean(`Damaged percentage`),
+                e_days = mean(e_days, na.rm = T), .groups = "drop")
+    plot_title <- "Regular monitoring; average per taxa per pixel per year"
+  } else if(round_type == "pixel"){
+    df_round <- df %>% 
+      group_by(lon_sst, lat_sst, year) %>% 
+      summarise(`Damaged percentage` = mean(`Damaged percentage`),
+                e_days = mean(e_days, na.rm = T), .groups = "drop") %>%
+      mutate(Taxa = "pixel")
+    plot_title <- "Regular monitoring; average per pixel per year"
+  }
+  # Cast long for more control
+  # df_long <- df_round %>% 
+    # left_join(site_MME_MHW_summary, by = c("lon_sst", "lat_sst", "year")) %>% 
+    # dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
+                  # `Damaged percentage (mean)` = `Damaged percentage.y`) %>% 
+    # pivot_longer(duration:sum_anom) %>% 
+    # filter(name == "e_days") # Pick the variable for the X-axis
+  # Get label for plot
+  df_label <- df_round %>% 
+    summarise(count = n(),
+              r_val = round(cor.test(`Damaged percentage`, e_days)$estimate, 2),
+              p_val = round(cor.test(`Damaged percentage`, e_days)$p.value, 2),
+              x_point = sum(range(e_days, na.rm = T))/2, .groups = "drop")
+  # The figure
+  ggplot(data = df_round, aes(x = e_days, y = `Damaged percentage`)) +
+    # geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
+    geom_smooth(colour = "black", method = "lm", se = F) +
+    geom_point(aes(colour = Taxa)) +
+    geom_label(data = df_label, aes(y = 10, x = x_point, label = paste0("n = ",count)), alpha = 0.6) +
+    geom_label(data = df_label, alpha = 0.6, 
+               aes(y = 90, x = x_point, label = paste0("r = ",r_val,", p = ",p_val))) +
+    guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
+    scale_colour_brewer(palette = "Set1") +
+    labs(y = "MME damage (%)", colour = "Taxa",
+         x = "Days above 90th percentile threshold",
+         # title = paste0(spp_title, "MME damage vs MHW cumulative intensity (JJASON)"),
+         title = "MME damage vs days above 90th perc. thresh. (JJASON)",
+         subtitle = plot_title) +#,
+    # subtitle = "Solid lines for all depths and dashed lines shallower than 15 m") +
+    # facet_wrap(~Ecoregion, scales = "free_x") +#, strip.position = "bottom") +
+    scale_y_continuous(limits = c(-2, max(df_round$`Damaged percentage`, na.rm = T)+2)) +
+    # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
+    theme(panel.border = element_rect(colour = "black", fill = NA),
+          legend.position = "bottom", legend.box = "vertical",
+          strip.placement = "outside", strip.background = element_blank())
+}
+
+## Different rounding approaches
+panel_all <- species_scatter_full(mme_mhw, "none")
+
 ## Combine and save
 manu_fig_4 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D)
 ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 16)
+
