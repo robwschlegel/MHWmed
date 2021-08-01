@@ -157,19 +157,19 @@ load("data/MHW_cat_summary_annual.RData")
 load("data/MHW_cat_summary_annual_JJASON.RData")
 
 
-# Extreme heat days and anoms ---------------------------------------------
+# Annual summaries of clim ------------------------------------------------
 
 # Calculations for the days above the 90th percentile and the total anomalies
 doParallel::registerDoParallel(cores = 15)
 system.time(
 MHW_clim_pixel_annual <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T)
-) # 358 seconds on 15 cores
+) # 393 seconds on 15 cores
 save(MHW_clim_pixel_annual, file = "data/MHW_clim_pixel_annual.RData")
 
 # The same for JJASON
 system.time(
 MHW_clim_pixel_annual_JJASON <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T, sub_months = seq(6, 11))
-) # 308 seconds
+) # 314 seconds
 save(MHW_clim_pixel_annual_JJASON, file = "data/MHW_clim_pixel_annual_JJASON.RData")
 
 
@@ -408,7 +408,7 @@ lon_lat_match_full_grid <- expand_grid(year = seq(1982, 2019), lon_lat_match)
 doParallel::registerDoParallel(cores = 15)
 system.time(
 site_event_cat <- plyr::ddply(lon_lat_match, c("lon_mme", "lat_mme"), load_event_cat, .parallel = T)
-) # 107 seconds
+) # 200 seconds
 
 # Load annual pixel clim summaries
 load("data/MHW_clim_pixel_annual_JJASON.RData")
@@ -419,14 +419,14 @@ site_MHW_summary <- site_event_cat %>%
   mutate(year = lubridate::year(date_peak),
          month = lubridate::month(date_peak)) %>%
   filter(month %in% seq(6, 11)) %>% 
-  group_by(lon_sst, lat_sst, year) %>% 
+  group_by(lon_sst, lat_sst, year) %>%
   summarise(count_MHW = n(),
             duration = sum(duration, na.rm = T),
             # imean = round(mean(intensity_mean, na.rm = T), 2),
-            icum = round(sum(intensity_cumulative, na.rm = T)), .groups = "drop") %>% 
+            icum_event = round(sum(intensity_cumulative, na.rm = T)), .groups = "drop") %>%
   right_join(lon_lat_match_full_grid, by = c("year", "lon_sst", "lat_sst")) %>% 
   left_join(MHW_clim_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
-  dplyr::select(lon_sst:icum, e_days, sum_anom) %>% 
+  dplyr::select(lon_sst:icum_event, temp:icum) %>% 
   replace(is.na(.), 0) %>%  # Fill in the no MHW rows with 0's
   distinct() %>% 
   dplyr::arrange(lon_sst, lat_sst, year)

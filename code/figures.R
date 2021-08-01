@@ -410,10 +410,6 @@ ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 16)
 # E.g. the range of MHW days in a year is not large, but MME damage is
 # What is it that drives the dots up within a narrow x-axis range? Species? Location?
 
-# TODO: Change dot colour from year to taxa
-
-# TODO: Average results per pixel for all records
-
 # Load MME MHW pairing data
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
 
@@ -435,47 +431,60 @@ mme_reg <- mme_mhw %>%
   filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring"))# | Ecoregion == "Alboran Sea") #%>% 
   # group_by(year, Ecoregion, lon_sst, lat_sst, Tax) %>% summarise_all(mean, na.rm = T) 
 
+# The 3B filtered group
+mme_3B <- mme_mhw %>% 
+  filter(Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
+
 # Function for showing scatterplots for full med with different rounding methods
-species_scatter_full <- function(df, round_type){
+species_scatter_full <- function(df, round_type, x_var){
   # Round data accordingly
   if(round_type == "none"){
     df_round <- df
-    plot_title <- "Regular monitoring; full records"
+    plot_sub <- "Filter 3B; full records"
   } else if(round_type == "species"){
     df_round <- df %>% 
-      group_by(lon_sst, lat_sst, year, Taxa, species) %>% 
-      summarise(`Damaged percentage` = mean(`Damaged percentage`),
-                e_days = mean(e_days, na.rm = T), .groups = "drop")
-    plot_title <- "Regular monitoring; average per species per pixel per year"
-  } else if(round_type == "Taxa"){
+      group_by(lon_sst, lat_sst, year, Taxa, Species) %>% 
+      summarise_all(mean, na.rm  = T, .groups = "drop")
+    plot_sub <- "Filter 3B; average per species per pixel per year"
+  } else if(round_type == "taxa"){
     df_round <- df %>% 
       group_by(lon_sst, lat_sst, year, Taxa) %>% 
-      summarise(`Damaged percentage` = mean(`Damaged percentage`),
-                e_days = mean(e_days, na.rm = T), .groups = "drop")
-    plot_title <- "Regular monitoring; average per taxa per pixel per year"
+      summarise_all(mean, na.rm  = T, .groups = "drop")
+    plot_sub <- "Filter 3B; average per taxa per pixel per year"
   } else if(round_type == "pixel"){
     df_round <- df %>% 
       group_by(lon_sst, lat_sst, year) %>% 
-      summarise(`Damaged percentage` = mean(`Damaged percentage`),
-                e_days = mean(e_days, na.rm = T), .groups = "drop") %>%
+      summarise_all(mean, na.rm  = T, .groups = "drop") %>% 
       mutate(Taxa = "pixel")
-    plot_title <- "Regular monitoring; average per pixel per year"
+    plot_sub <- "Filter 3B; average per pixel per year"
+  }
+  # Set x-axis label
+  if(x_var == "mhw_days"){
+    x_lab <- "MHW days"
+    plot_title <- "MME damage vs MHW days (JJASON)"
+  } else if(x_var == "e_days"){
+    x_lab <- "Days above 90th percentile threshold"
+    plot_title <- "MME damage vs days above 90th perc. thresh. (JJASON)"
+  } else if(x_var == "sum_anom"){
+    x_lab <- "Sum of temperature anomalies (°C days)"
+    plot_title <- "MME damage vs temperature anomalies. (JJASON)"
+  } else if (x_var == "icum"){
+    x_lab <- "MHW cumulative intensity (°C days)"
+    plot_title <- "MME damage vs MHW cumulative intensity JJASON)"
   }
   # Cast long for more control
-  # df_long <- df_round %>% 
-    # left_join(site_MME_MHW_summary, by = c("lon_sst", "lat_sst", "year")) %>% 
-    # dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
-                  # `Damaged percentage (mean)` = `Damaged percentage.y`) %>% 
-    # pivot_longer(duration:sum_anom) %>% 
-    # filter(name == "e_days") # Pick the variable for the X-axis
+  df_long <- df_round %>%
+    pivot_longer(mhw_days:icum) %>%
+    filter(name == x_var)  # Pick the variable for the X-axis
   # Get label for plot
-  df_label <- df_round %>% 
+  df_label <- df_long %>%
+    ungroup() %>% 
     summarise(count = n(),
-              r_val = round(cor.test(`Damaged percentage`, e_days)$estimate, 2),
-              p_val = round(cor.test(`Damaged percentage`, e_days)$p.value, 2),
-              x_point = sum(range(e_days, na.rm = T))/2, .groups = "drop")
+              r_val = round(cor.test(`Damaged percentage`, value)$estimate, 2),
+              p_val = round(cor.test(`Damaged percentage`, value)$p.value, 2),
+              x_point = sum(range(value, na.rm = T))/2, .groups = "drop")
   # The figure
-  ggplot(data = df_round, aes(x = e_days, y = `Damaged percentage`)) +
+  ggplot(data = df_long, aes(x = value, y = `Damaged percentage`)) +
     # geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
     geom_smooth(colour = "black", method = "lm", se = F) +
     geom_point(aes(colour = Taxa)) +
@@ -483,13 +492,9 @@ species_scatter_full <- function(df, round_type){
     geom_label(data = df_label, alpha = 0.6, 
                aes(y = 90, x = x_point, label = paste0("r = ",r_val,", p = ",p_val))) +
     guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
-    scale_colour_brewer(palette = "Set1") +
-    labs(y = "MME damage (%)", colour = "Taxa",
-         x = "Days above 90th percentile threshold",
-         # title = paste0(spp_title, "MME damage vs MHW cumulative intensity (JJASON)"),
-         title = "MME damage vs days above 90th perc. thresh. (JJASON)",
-         subtitle = plot_title) +#,
-    # subtitle = "Solid lines for all depths and dashed lines shallower than 15 m") +
+    # scale_colour_brewer(palette = "Set1") +
+    labs(y = "MME damage (%)", colour = "Taxa", x = x_lab,
+         title = plot_title, subtitle = plot_sub) +
     # facet_wrap(~Ecoregion, scales = "free_x") +#, strip.position = "bottom") +
     scale_y_continuous(limits = c(-2, max(df_round$`Damaged percentage`, na.rm = T)+2)) +
     # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
@@ -499,9 +504,18 @@ species_scatter_full <- function(df, round_type){
 }
 
 ## Different rounding approaches
-panel_all <- species_scatter_full(mme_mhw, "none")
+panel_all_days <- species_scatter_full(mme_3B, "none", "mhw_days")
+panel_species_days <- species_scatter_full(mme_3B, "species", "mhw_days")
+panel_taxa_days <- species_scatter_full(mme_3B, "taxa", "mhw_days")
+panel_pixel_days <- species_scatter_full(mme_3B, "pixel", "mhw_days")
+panel_all_icum <- species_scatter_full(mme_3B, "none", "icum")
+panel_species_icum <- species_scatter_full(mme_3B, "species", "icum")
+panel_taxa_icum <- species_scatter_full(mme_3B, "taxa", "icum")
+panel_pixel_icum <- species_scatter_full(mme_3B, "pixel", "icum")
 
 ## Combine and save
-manu_fig_4 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D)
-ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 16)
+manu_fig_4_days <- ggpubr::ggarrange(panel_all_days, panel_species_days, panel_taxa_days, panel_pixel_days, nrow = 1, align = "hv")
+manu_fig_4_icum <- ggpubr::ggarrange(panel_all_icum, panel_species_icum, panel_taxa_icum, panel_pixel_icum, nrow = 1, align = "hv")
+manu_fig_4 <- ggpubr::ggarrange(manu_fig_4_days, manu_fig_4_icum, ncol = 1)
+ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 25)
 

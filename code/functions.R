@@ -354,17 +354,28 @@ clim_pixel_annual_calc <- function(file_name, sub_months = seq(1, 12)){
     filter(!is.na(t)) %>%
     mutate(year = lubridate::year(t),
            month = lubridate::month(t, label = F))
+
+  # icum summary
+  res_icum <- event_clim %>% 
+    filter(month %in% sub_months) %>% 
+    group_by(lon, lat, year, event) %>%
+    summarise(icum = sum(temp-seas), .groups = "drop") %>% 
+    filter(event == TRUE) %>% 
+    dplyr::select(-event)
   
   # Annual summary of 90th perc days and sum of anoms
   res <- event_clim %>% 
     filter(month %in% sub_months) %>% 
-    group_by(lon, lat, year) %>% 
+    group_by(lon, lat, year) %>%
     summarise(temp = mean(temp, na.rm = T),
+              mhw_days = sum(event),
               e_days = sum(threshCriterion), 
-              sum_anom = sum(temp-seas), .groups = "drop")
+              sum_anom = sum(temp-seas), .groups = "drop") %>% 
+    left_join(res_icum, by = c("lon", "lat", "year")) %>% 
+    mutate(icum = replace_na(icum, 0))
   
   # Clean up and exit
-  rm(res_full, event_clim); gc()
+  rm(res_full, res_icum, event_clim); gc()
   return(res)
 }
 
