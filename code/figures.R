@@ -301,14 +301,20 @@ panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
 # Prep data
 pixel_cat_pentad <- MHW_cat_pixel_annual %>% 
   right_join(med_regions, by = c("lon", "lat")) %>%
-  group_by(lon, lat, year, month) %>% 
-  summarise(cat2 = sum(`II Strong`, `III Severe`, `IV Extreme`), .groups = "drop") %>% 
+  group_by(lon, lat, year) %>% 
+  summarise(cat2 = sum(`II Strong`, `III Severe`, `IV Extreme`),
+            cat_max = max(as.numeric(category), na.rm = T), .groups = "drop") %>% 
   mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
   group_by(lon, lat, pentad) %>% 
-  summarise(cat2 = mean(cat2, na.rm = T), .groups = "drop") %>% 
-  pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "cat2") %>% 
-  mutate(`(1981,1986]` = replace_na(`(1981,1986]`, 0)) %>% 
-  mutate(cat2_diff = `(2014,2019]` - `(1981,1986]`)
+  summarise(cat2 = mean(cat2, na.rm = T), 
+            cat_max = max(cat_max, na.rm = T), .groups = "drop") %>% 
+  dplyr::select(-cat2) %>% 
+  pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "cat_max") %>%
+  mutate(`(1981,1986]` = replace_na(`(1981,1986]`, 0)) %>%
+  mutate(cat_max_diff = case_when(`(1981,1986]` < `(2014,2019]` ~ "greater",
+                                  `(1981,1986]` == `(2014,2019]` ~ "same",
+                                  `(1981,1986]` > `(2014,2019]` ~ "less"))
+  # mutate(cat2_diff = `(2014,2019]` - `(1981,1986]`)
 # Plot data
 panel_C <- pixel_cat_pentad %>%
   # group_by(lon, lat) %>%
@@ -316,12 +322,13 @@ panel_C <- pixel_cat_pentad %>%
   # mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
   ggplot() +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-  geom_tile(aes(x = lon, y = lat, fill = cat2_diff), colour = NA, show.legend = T) +
+  geom_tile(aes(x = lon, y = lat, fill = cat_max_diff), colour = NA, show.legend = T) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
                fill = "grey70", colour = "black") +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
+  scale_fill_manual(values = c("red", "white", "blue")) +
   # scale_fill_manual("Category", values = MHW_colours) +
-  scale_fill_gradient2(low = "darkorchid", mid = "white", high = "hotpink", midpoint = 0) +#,
+  # scale_fill_gradient2(low = "darkorchid", mid = "white", high = "hotpink", midpoint = 0) +#,
                        # breaks = c(0.9, 1.2, 1.5), midpoint = 1.1) +
   # scale_y_continuous(breaks = NULL) +
   # scale_x_continuous(breaks = NULL) +
@@ -330,12 +337,12 @@ panel_C <- pixel_cat_pentad %>%
            ylim = c(min(med_regions$lat), max(med_regions$lat))) +
   # theme_void() +
   # theme_bw() +
-  labs(title = "__(c)__   Category II+ MHW day difference [2015 to 2019] minus [1982 to 1986]",
-       y = "Latitude (°N)", x = "Longitude (°E)", fill = "Difference \n(days)") +
+  labs(title = "__(c)__   Comparison of maximum category for [2015 to 2019] over [1982 to 1986]",
+       y = "Latitude (°N)", x = "Longitude (°E)", fill = "Max category") +
   # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         plot.title = ggtext::element_markdown(),
-        legend.position = c(0.9, 0.74),
+        legend.position = c(0.89, 0.84),
         # legend.position = "bottom",
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
@@ -441,22 +448,26 @@ species_scatter_full <- function(df, round_type, x_var){
   if(round_type == "none"){
     df_round <- df
     plot_sub <- "Filter 3B; full records"
+    write_csv(df_round, "data/MME_MHW_Plot_3B.csv")
   } else if(round_type == "species"){
     df_round <- df %>% 
       group_by(lon_sst, lat_sst, year, Taxa, Species) %>% 
       summarise_all(mean, na.rm  = T, .groups = "drop")
     plot_sub <- "Filter 3B; average per species per pixel per year"
+    write_csv(df_round, "data/MME_MHW_Plot_3B_species.csv")
   } else if(round_type == "taxa"){
     df_round <- df %>% 
       group_by(lon_sst, lat_sst, year, Taxa) %>% 
       summarise_all(mean, na.rm  = T, .groups = "drop")
     plot_sub <- "Filter 3B; average per taxa per pixel per year"
+    write_csv(df_round, "data/MME_MHW_Plot_3B_taxa.csv")
   } else if(round_type == "pixel"){
     df_round <- df %>% 
       group_by(lon_sst, lat_sst, year) %>% 
       summarise_all(mean, na.rm  = T, .groups = "drop") %>% 
       mutate(Taxa = "pixel")
     plot_sub <- "Filter 3B; average per pixel per year"
+    write_csv(df_round, "data/MME_MHW_Plot_3B_pixel.csv")
   }
   # Set x-axis label
   if(x_var == "mhw_days"){

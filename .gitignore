@@ -12,6 +12,9 @@ data/MME_MHW_Plot_2A.csv
 data/MME_MHW_Plot_2B.csv
 data/MME_MHW_Plot_3A.csv
 data/MME_MHW_Plot_3B.csv
+data/MME_MHW_Plot_3B_species.csv
+data/MME_MHW_Plot_3B_taxa.csv
+data/MME_MHW_Plot_3B_pixel.csv
 data/MME_MHW.csv
 data/Cnidaria_CatalanCoast.csv
 data/MHW_cat_daily_annual.RData
