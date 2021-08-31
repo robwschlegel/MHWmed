@@ -310,24 +310,31 @@ pixel_cat_pentad <- MHW_cat_pixel_annual %>%
             cat_max = max(cat_max, na.rm = T), .groups = "drop") %>% 
   dplyr::select(-cat2) %>% 
   pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "cat_max") %>%
-  mutate(`(1981,1986]` = replace_na(`(1981,1986]`, 0)) %>%
+  # mutate(`(1981,1986]` = replace_na(`(1981,1986]`, 0)) %>%
+  replace(is.na(.), 0) %>% 
   mutate(cat_max_diff = case_when(`(1981,1986]` < `(2014,2019]` ~ "greater",
                                   `(1981,1986]` == `(2014,2019]` ~ "same",
-                                  `(1981,1986]` > `(2014,2019]` ~ "less"))
-  # mutate(cat2_diff = `(2014,2019]` - `(1981,1986]`)
+                                  `(1981,1986]` > `(2014,2019]` ~ "less")) %>% 
+  mutate(cat_max_diff_cat = ifelse(`(1981,1986]` <= 1 & `(1981,1986]` < `(2014,2019]`, `(2014,2019]`, NA)) %>% 
+  mutate(cat_max_diff_cat = case_when(cat_max_diff_cat == 2 ~ "II Strong",
+                                      cat_max_diff_cat == 3 ~ "III Severe",
+                                      cat_max_diff_cat == 4 ~ "IV Extreme"))
+
 # Plot data
 panel_C <- pixel_cat_pentad %>%
+  na.omit() %>%
   # group_by(lon, lat) %>%
   # summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>%
-  # mutate(category = factor(category, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
+  # mutate(cat_max_diff_cat = factor(cat_max_diff_cat, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
   ggplot() +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-  geom_tile(aes(x = lon, y = lat, fill = cat_max_diff), colour = NA, show.legend = T) +
+  geom_tile(data = filter(pixel_cat_pentad, is.na(cat_max_diff_cat)), aes(x = lon, y = lat), fill = "white") +
+  geom_tile(aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
                fill = "grey70", colour = "black") +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
-  scale_fill_manual(values = c("red", "white", "blue")) +
-  # scale_fill_manual("Category", values = MHW_colours) +
+  # scale_fill_manual(values = c("red", "white", "blue")) +
+  scale_fill_manual("Category", values = MHW_colours) +
   # scale_fill_gradient2(low = "darkorchid", mid = "white", high = "hotpink", midpoint = 0) +#,
                        # breaks = c(0.9, 1.2, 1.5), midpoint = 1.1) +
   # scale_y_continuous(breaks = NULL) +
@@ -337,7 +344,7 @@ panel_C <- pixel_cat_pentad %>%
            ylim = c(min(med_regions$lat), max(med_regions$lat))) +
   # theme_void() +
   # theme_bw() +
-  labs(title = "__(c)__   Comparison of maximum category for [2015 to 2019] over [1982 to 1986]",
+  labs(title = "__(c)__   The highest category for [2015 to 2019] when [1982 to 1986] was 'I Moderate' or less",
        y = "Latitude (°N)", x = "Longitude (°E)", fill = "Max category") +
   # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
@@ -442,6 +449,10 @@ mme_reg <- mme_mhw %>%
 mme_3B <- mme_mhw %>% 
   filter(Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW"))
 
+# Final filtering of 3B filter
+mme_final <- mme_3B %>% 
+  filter(Taxa != "Mollusca (Bivalvia)", Taxa != "Tracheophyta", Species != "Encrusting calcareous algae")
+
 # Function for showing scatterplots for full med with different rounding methods
 species_scatter_full <- function(df, round_type, x_var){
   # Round data accordingly
@@ -515,14 +526,14 @@ species_scatter_full <- function(df, round_type, x_var){
 }
 
 ## Different rounding approaches
-panel_all_days <- species_scatter_full(mme_3B, "none", "mhw_days")
-panel_species_days <- species_scatter_full(mme_3B, "species", "mhw_days")
-panel_taxa_days <- species_scatter_full(mme_3B, "taxa", "mhw_days")
-panel_pixel_days <- species_scatter_full(mme_3B, "pixel", "mhw_days")
-panel_all_icum <- species_scatter_full(mme_3B, "none", "icum")
-panel_species_icum <- species_scatter_full(mme_3B, "species", "icum")
-panel_taxa_icum <- species_scatter_full(mme_3B, "taxa", "icum")
-panel_pixel_icum <- species_scatter_full(mme_3B, "pixel", "icum")
+panel_all_days <- species_scatter_full(mme_final, "none", "mhw_days")
+panel_species_days <- species_scatter_full(mme_final, "species", "mhw_days")
+panel_taxa_days <- species_scatter_full(mme_final, "taxa", "mhw_days")
+panel_pixel_days <- species_scatter_full(mme_final, "pixel", "mhw_days")
+panel_all_icum <- species_scatter_full(mme_final, "none", "icum")
+panel_species_icum <- species_scatter_full(mme_final, "species", "icum")
+panel_taxa_icum <- species_scatter_full(mme_final, "taxa", "icum")
+panel_pixel_icum <- species_scatter_full(mme_final, "pixel", "icum")
 
 ## Combine and save
 manu_fig_4_days <- ggpubr::ggarrange(panel_all_days, panel_species_days, panel_taxa_days, panel_pixel_days, nrow = 1, align = "hv")
