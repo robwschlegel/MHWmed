@@ -287,7 +287,7 @@ panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
                    y = anom_pentad, yend = anom_pentad)) +
   scale_fill_gradient2(low = "blue", high = "red") +
   scale_x_continuous(breaks = seq(1984, 2019, 7), expand = c(0, 0)) +
-  labs(title = "__(b)__   Annual SST anomalies (1982 - 2019)",
+  labs(title = "__(b)__   Annual SST anomalies [1982 to 2019]",
        y = "Temperature (°C)", x = "Year") +
   theme(plot.title = ggtext::element_markdown(),
         panel.border = element_rect(colour = "black", fill = NA),
@@ -328,7 +328,7 @@ panel_C <- pixel_cat_pentad %>%
   # mutate(cat_max_diff_cat = factor(cat_max_diff_cat, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
   ggplot() +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-  geom_tile(data = filter(pixel_cat_pentad, is.na(cat_max_diff_cat)), aes(x = lon, y = lat), fill = "white") +
+  geom_tile(data = filter(pixel_cat_pentad, is.na(cat_max_diff_cat)), aes(x = lon, y = lat), fill = "skyblue") + # This background fill colour needs tweaking
   geom_tile(aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
                fill = "grey70", colour = "black") +
@@ -369,33 +369,39 @@ OISST_global <- readRDS("data/OISST_cat_daily_1992-2018_total.Rds") %>%
 cat_daily_mean <- MHW_cat_summary_annual %>%
   filter(category != "I Moderate") %>% 
   group_by(year, category) %>%
-  summarise(cat_n_prop_mean = mean(cat_n_prop, na.rm = T),
+  summarise(first_n_cum_prop = max(first_n_cum_prop),
+            cat_n_prop_mean = mean(cat_n_prop, na.rm = T),
             cat_n_cum_prop = max(cat_n_cum_prop, na.rm = T), .groups = "drop")
 cat_pentad <- cat_daily_mean %>% 
   group_by(year) %>% 
-  summarise(cat_n_cum_prop_sum = sum(cat_n_cum_prop, na.rm = T), .groups = "drop") %>% 
+  summarise(cat_n_cum_prop_sum = sum(cat_n_cum_prop, na.rm = T),
+            first_n_cum_prop_sum = sum(first_n_cum_prop), .groups = "drop") %>% 
   mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
   group_by(pentad) %>% 
-  summarise(cat_n_cum_prop_pentad = mean(cat_n_cum_prop_sum, na.rm = T), .groups = "drop") %>%
+  summarise(cat_n_cum_prop_pentad = mean(cat_n_cum_prop_sum, na.rm = T),
+            first_n_cum_prop_pentad = mean(first_n_cum_prop_sum), .groups = "drop") %>%
   separate(pentad, into = c("start_year", "end_year"), sep = ",", remove = F) %>% 
   mutate(start_year = as.numeric(sub("[(]", "", start_year)) + 1,
          end_year = as.numeric(sub("]", "", end_year)))
 # Plot data
-panel_D <- ggplot(cat_daily_mean, aes(x = year, y = cat_n_cum_prop)) +
+panel_D <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
   geom_bar(aes(fill = category), stat = "identity", show.legend = T,
            position = position_stack(reverse = TRUE), width = 1) +
   geom_segment(data = cat_pentad, size = 2, lineend = "round",
                aes(x = start_year, xend = end_year, 
-                   y = cat_n_cum_prop_pentad, yend = cat_n_cum_prop_pentad)) +
-  geom_point(data = OISST_global, aes(x = t, y = cat_n_prop_stack), 
+                   y = first_n_cum_prop_pentad, yend = first_n_cum_prop_pentad)) +
+  geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack), 
              shape = 21, fill = "grey", show.legend = F) +
   scale_fill_manual("Category", values = MHW_colours) +
   scale_colour_manual("Category", values = MHW_colours) +
-  scale_y_continuous(limits = c(0, 20),
-                     breaks = seq(5, 15, length.out = 3)) +
+  # scale_y_continuous(limits = c(0, 20),
+  #                    breaks = seq(5, 15, length.out = 3)) +
+  scale_y_continuous(limits = c(0, 1),
+                     breaks = c(0.25, 0.5, 0.75),
+                     labels = c("25", "50", "75")) +
   scale_x_continuous(breaks = seq(1984, 2019, 7)) +
   guides(pattern_colour = FALSE, colour = FALSE) +
-  labs(title = "__(d)__   Surface area affected by category II+ MHWs",
+  labs(title = "__(d)__   Surface area affected by category 'II Strong'+ MHWs",
        y = "Cover (%)", x = "Year") +
   coord_cartesian(expand = F) +
   theme(plot.title = ggtext::element_markdown(),
@@ -410,6 +416,12 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = cat_n_cum_prop)) +
 ## Combine and save
 manu_fig_1 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D)
 ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 16)
+
+# Summary stats for text
+cat_daily_mean %>% 
+  group_by(year) %>% 
+  summarise(first_n_cum_prop_sum = sum(first_n_cum_prop)) %>% 
+  arrange(-first_n_cum_prop_sum)
 
 
 # Manuscript figure 4 -----------------------------------------------------
