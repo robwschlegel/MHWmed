@@ -451,7 +451,6 @@ mme_mhw <- mme %>%
   dplyr::rename(`Damaged percentage` = `Damaged percentage.x`,
                 `Damaged percentage (mean)` = `Damaged percentage.y`)
 
-
 # Extract only records with regular monitoring
 mme_reg <- mme_mhw %>% 
   filter(`Monitoring series` %in% c("more.than.two.per.year", "one.per.year.monitoring"))# | Ecoregion == "Alboran Sea") #%>% 
@@ -465,7 +464,15 @@ mme_3B <- mme_mhw %>%
 mme_final <- mme_3B %>% 
   filter(Taxa != "Mollusca (Bivalvia)", Taxa != "Tracheophyta", Species != "Encrusting calcareous algae")
 
+# Average pixel distance
+mean(mme_final$dist, na.rm = T)
+range(mme_final$dist, na.rm = T)
+
+# MHW to MME occurrence stats
+nrow(filter(mme_final, count_MHW == 0))/nrow(mme_final)
+
 # Function for showing scatterplots for full med with different rounding methods
+# df <- mme_final; round_type <- "species"; x_var <- "mhw_days" # Look inside the function
 species_scatter_full <- function(df, round_type, x_var){
   # Round data accordingly
   if(round_type == "none"){
