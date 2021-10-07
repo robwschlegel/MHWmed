@@ -321,6 +321,7 @@ pixel_cat_pentad <- MHW_cat_pixel_annual %>%
                                       cat_max_diff_cat == 4 ~ "IV Extreme"))
 
 # Plot data
+# TODO: Add the pink pixels to the legend
 panel_C <- pixel_cat_pentad %>%
   na.omit() %>%
   # group_by(lon, lat) %>%
@@ -328,7 +329,7 @@ panel_C <- pixel_cat_pentad %>%
   # mutate(cat_max_diff_cat = factor(cat_max_diff_cat, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
   ggplot() +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-  geom_tile(data = filter(pixel_cat_pentad, is.na(cat_max_diff_cat)), aes(x = lon, y = lat), fill = "skyblue") + # This background fill colour needs tweaking
+  geom_tile(data = filter(pixel_cat_pentad, is.na(cat_max_diff_cat)), aes(x = lon, y = lat), fill = "salmon", alpha = 0.3) + # This background fill colour needs tweaking
   geom_tile(aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
                fill = "grey70", colour = "black") +
@@ -349,12 +350,12 @@ panel_C <- pixel_cat_pentad %>%
   # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         plot.title = ggtext::element_markdown(),
-        legend.position = c(0.89, 0.84),
+        legend.position = c(0.89, 0.82),
         # legend.position = "bottom",
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
         panel.background = element_rect(fill = "grey90"))
-# panel_C
+panel_C
 
 ## D: Barplot of Med surface area affected by Cat 2+ MHWs 
 # Load data
