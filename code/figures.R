@@ -229,6 +229,7 @@ write_csv(mme_reg_sub, "data/MME_NW_SW.csv")
 # Manuscript figure 1 -----------------------------------------------------
 
 ## A: Map of temperature difference mean 1982-1986 vs 2015-2019
+# TODO: Add ecoregions to all maps
 # Load data
 load("data/MHW_clim_pixel_annual.RData")
 # Prep data
@@ -298,6 +299,14 @@ panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
 # panel_B
 
 ## C: Map of difference in cat 2+ days between first and last pentad
+# Custom legend
+MHW_colours_compare <- c(
+  "Same" = "salmon",
+  MHW_colours[2],
+  MHW_colours[3],
+  MHW_colours[4]
+)
+
 # Prep data
 pixel_cat_pentad <- MHW_cat_pixel_annual %>% 
   right_join(med_regions, by = c("lon", "lat")) %>%
@@ -318,10 +327,10 @@ pixel_cat_pentad <- MHW_cat_pixel_annual %>%
   mutate(cat_max_diff_cat = ifelse(`(1981,1986]` <= 1 & `(1981,1986]` < `(2014,2019]`, `(2014,2019]`, NA)) %>% 
   mutate(cat_max_diff_cat = case_when(cat_max_diff_cat == 2 ~ "II Strong",
                                       cat_max_diff_cat == 3 ~ "III Severe",
-                                      cat_max_diff_cat == 4 ~ "IV Extreme"))
+                                      cat_max_diff_cat == 4 ~ "IV Extreme",
+                                      TRUE ~ "Same"))
 
 # Plot data
-# TODO: Add the pink pixels to the legend
 panel_C <- pixel_cat_pentad %>%
   na.omit() %>%
   # group_by(lon, lat) %>%
@@ -329,13 +338,16 @@ panel_C <- pixel_cat_pentad %>%
   # mutate(cat_max_diff_cat = factor(cat_max_diff_cat, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
   ggplot() +
   # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
-  geom_tile(data = filter(pixel_cat_pentad, is.na(cat_max_diff_cat)), aes(x = lon, y = lat), fill = "salmon", alpha = 0.3) + # This background fill colour needs tweaking
-  geom_tile(aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
+  geom_tile(data = filter(pixel_cat_pentad, cat_max_diff_cat == "Same"), 
+            aes(x = lon, y = lat, fill = cat_max_diff_cat), alpha = 0.3) + # This background fill colour needs tweaking
+  geom_tile(data = filter(pixel_cat_pentad, cat_max_diff_cat != "Same"),
+            aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
                fill = "grey70", colour = "black") +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
   # scale_fill_manual(values = c("red", "white", "blue")) +
-  scale_fill_manual("Category", values = MHW_colours) +
+  scale_fill_manual("Category", values = MHW_colours_compare,
+                    breaks = c("Same", "II Strong", "III Severe", "IV Extreme")) +
   # scale_fill_gradient2(low = "darkorchid", mid = "white", high = "hotpink", midpoint = 0) +#,
                        # breaks = c(0.9, 1.2, 1.5), midpoint = 1.1) +
   # scale_y_continuous(breaks = NULL) +
@@ -350,12 +362,12 @@ panel_C <- pixel_cat_pentad %>%
   # guides(fill = guide_legend(override.aes = list(size = 10))) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         plot.title = ggtext::element_markdown(),
-        legend.position = c(0.89, 0.82),
+        legend.position = c(0.89, 0.78),
         # legend.position = "bottom",
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
         panel.background = element_rect(fill = "grey90"))
-panel_C
+# panel_C
 
 ## D: Barplot of Med surface area affected by Cat 2+ MHWs 
 # Load data

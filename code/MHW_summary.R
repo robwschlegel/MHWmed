@@ -843,3 +843,57 @@ bar_dur <- ecoregion_MME_MHW_all %>%
 # bar_dur
 ggsave("figures/MHW_ecoregion_summary.png", bar_dur, height = 8, width = 8)
 
+
+# Pentad stats ------------------------------------------------------------
+
+# Load data
+load("data/MHW_clim_pixel_annual_JJASON.RData")
+
+# Load MME MHW pairing data
+site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
+
+# Load coords for 7 TMED-Net sites for comparison
+seven_sites <- read_delim("metadata/7sites_ID_lon_lat.csv", delim = ";")
+
+# Find nearest pixels
+seven_sites_match <- grid_match(seven_sites[c("lon", "lat")], unique(MHW_clim_pixel_annual_JJASON[c("lon", "lat")]))
+
+# Pixel pentad stats
+pentad_stats_pixel <- MHW_clim_pixel_annual_JJASON %>% 
+  right_join(seven_sites_match, by = c("lon" = "lon.y", "lat" = "lat.y")) %>%
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(lon, lat, pentad) %>% 
+  summarise(mhw_days = round(mean(mhw_days, na.rm = T), 2), .groups = "drop") %>% 
+  pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "mhw_days") %>% 
+  mutate(mhw_days_diff = `(2014,2019]` - `(1981,1986]`,
+         ID = as.character(seven_sites$ID),
+         lon = round(lon, 4), lat = round(lat, 4))
+
+# Ecoregion pentad stats
+pentad_stats_ecoregion <- MHW_clim_pixel_annual_JJASON %>% 
+  right_join(med_regions, by = c("lon", "lat")) %>%
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(Ecoregion, pentad) %>% 
+  summarise(mhw_days = round(mean(mhw_days, na.rm = T), 2),
+            lon = round(mean(lon, na.rm = T), 2),
+            lat = round(mean(lat, na.rm = T), 2), .groups = "drop") %>% 
+  pivot_wider(id_cols = c("Ecoregion", "lon", "lat"), names_from = "pentad", values_from = "mhw_days") %>% 
+  mutate(mhw_days_diff = `(2014,2019]` - `(1981,1986]`) %>% 
+  dplyr::rename(ID = Ecoregion)
+
+# Med pentad stats
+pentad_stats_med <- MHW_clim_pixel_annual_JJASON %>% 
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(pentad) %>% 
+  summarise(mhw_days = round(mean(mhw_days, na.rm = T), 2),
+            lon = round(mean(lon, na.rm = T), 2),
+            lat = round(mean(lat, na.rm = T), 2), .groups = "drop") %>% 
+  pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "mhw_days") %>% 
+  mutate(mhw_days_diff = `(2014,2019]` - `(1981,1986]`,
+         ID = "Mediterranean")
+
+# Combine and save
+pentad_stats <- bind_rows(pentad_stats_pixel, pentad_stats_ecoregion, pentad_stats_med) %>% 
+  dplyr::select(ID, everything())
+write_csv(pentad_stats, "data/pentad_stats.csv")
+
