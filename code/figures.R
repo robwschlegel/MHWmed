@@ -536,19 +536,23 @@ species_scatter_full <- function(df, round_type, x_var){
     summarise(count = n(),
               r_val = round(cor.test(`Damaged percentage`, value)$estimate, 2),
               p_val = round(cor.test(`Damaged percentage`, value)$p.value, 2),
-              x_point = sum(range(value, na.rm = T))/2, .groups = "drop")
+              x_point = sum(range(value, na.rm = T))/2, .groups = "drop") %>% 
+    mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
+                             TRUE ~ paste0("p = ",p_val)))
   # The figure
   ggplot(data = df_long, aes(x = value, y = `Damaged percentage`)) +
     # geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
     geom_smooth(colour = "black", method = "lm", se = F) +
     geom_point(aes(colour = Taxa)) +
-    geom_label(data = df_label, aes(y = 10, x = x_point, label = paste0("n = ",count)), alpha = 0.6) +
+    # geom_point() + # Simple black dots
+    # geom_label(data = df_label, aes(y = 10, x = x_point, label = paste0("n = ",count)), alpha = 0.6) +
     geom_label(data = df_label, alpha = 0.6, 
-               aes(y = 90, x = x_point, label = paste0("r = ",r_val,", p = ",p_val))) +
+               aes(y = 90, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
     guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
     # scale_colour_brewer(palette = "Set1") +
     labs(y = "MME damage (%)", colour = "Taxa", x = x_lab,
-         title = plot_title, subtitle = plot_sub) +
+         # subtitle = plot_sub,
+         title = plot_title) +
     # facet_wrap(~Ecoregion, scales = "free_x") +#, strip.position = "bottom") +
     scale_y_continuous(limits = c(-2, max(df_round$`Damaged percentage`, na.rm = T)+2)) +
     # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
@@ -568,8 +572,10 @@ panel_taxa_icum <- species_scatter_full(mme_final, "taxa", "icum")
 panel_pixel_icum <- species_scatter_full(mme_final, "pixel", "icum")
 
 ## Combine and save
-manu_fig_4_days <- ggpubr::ggarrange(panel_all_days, panel_species_days, panel_taxa_days, panel_pixel_days, nrow = 1, align = "hv")
-manu_fig_4_icum <- ggpubr::ggarrange(panel_all_icum, panel_species_icum, panel_taxa_icum, panel_pixel_icum, nrow = 1, align = "hv")
-manu_fig_4 <- ggpubr::ggarrange(manu_fig_4_days, manu_fig_4_icum, ncol = 1)
-ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 25)
+# manu_fig_4_days <- ggpubr::ggarrange(panel_all_days, panel_species_days, panel_taxa_days, panel_pixel_days, nrow = 1, align = "hv")
+# manu_fig_4_icum <- ggpubr::ggarrange(panel_all_icum, panel_species_icum, panel_taxa_icum, panel_pixel_icum, nrow = 1, align = "hv")
+# manu_fig_4 <- ggpubr::ggarrange(manu_fig_4_days, manu_fig_4_icum, ncol = 1)
+# ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 25)
+manu_fig_4 <- panel_species_days
+ggsave("figures/manu_fig_4.png", manu_fig_4, height = 5, width = 6)
 
