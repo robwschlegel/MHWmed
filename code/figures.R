@@ -226,7 +226,6 @@ mme_reg_sub <- mme_reg %>%
 write_csv(mme_reg_sub, "data/MME_NW_SW.csv")
 
 
-
 # Figure 4 ----------------------------------------------------------------
 
 # Barplot showing relationship between MHW days and percent damage per ecoregion
@@ -299,11 +298,86 @@ ggsave("figures/fig_4_region_pixel_JJASON.png", fig_4_region_pixel_JJASON, heigh
 
 # Analysis of mortality per pixel per ecoregion
 ## Get MHW days and relate them to percentage of observations that have mortality
-## Also perform analysis against "severe" MME
-## Or all MME above the lowest category etc.
+load("data/MHW_cat_pixel_annual_JJASON.RData")
+
 ## Use filter 3B for these analyses
+mme_3B <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+  group_by(lon, lat, year, Ecoregion, `Damaged qualitative`) %>%
+  summarise(count = n(), .groups = "drop") %>% 
+  group_by(lon, lat, year, Ecoregion) %>% 
+  mutate(total_n = sum(count),
+         prop_n = count/total_n) %>%
+  ungroup() %>% 
+  filter(`Damaged qualitative` != "No") %>% 
+  group_by(lon, lat, year, Ecoregion, total_n) %>% 
+  summarise(prop_mod_up = sum(prop_n), .groups = "drop")
+  # group_by(Ecoregion, year, lon, lat, Species) %>% 
+  # summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T), .groups = "drop")
+
+# Match nearest pixels
+mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
+                                  MHW_pixels[c("lon", "lat")]) %>% 
+  dplyr::rename(lon = lon.x, lat = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
+  distinct()
+mme_mhw_3B <- mme_3B %>% 
+  left_join(mme_mhw_pixel_match, by = c("lon", "lat")) %>% 
+  left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat"))
+
+# Perform analysis against "severe" MME
+## Or all MME above the lowest category etc.
 ## Create a scatterplot figure showing these results, similar to ManuFig4
 ## This may not work for all ecoregions
+mme_mhw_3B_label_all <- mme_mhw_3B %>%
+  # filter(`Damaged qualitative` != "No") %>% 
+  summarise(count = n(),
+            r_val = round(cor.test(prop_mod_up, duration_sum)$estimate, 2),
+            p_val = round(cor.test(prop_mod_up, duration_sum)$p.value, 2),
+            x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
+  mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
+                           TRUE ~ paste0("p = ",p_val)))
+fig_5_all <- mme_mhw_3B %>% 
+  # filter(`Damaged qualitative` != "No") %>% 
+  ggplot(aes(x = duration_sum, y = prop_mod_up)) +
+  geom_smooth(method = "lm", se = F, colour = "black") +
+  geom_point() +
+  geom_label(data = mme_mhw_3B_label_all, alpha = 0.6, 
+             aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
+  scale_y_continuous(limits = c(0.4, 1.1), breaks = c(0.50, 0.75, 0.1)) +
+  scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
+  coord_cartesian(expand = F) +
+  guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
+  # scale_colour_brewer(palette = "Set1") +
+  labs(y = "Pixel proportion moderate+", x = "MHW days") +
+  theme(legend.position = "bottom")
+fig_5_all
+ggsave("figures/fig_5_all.png", fig_5_all, height = 6, width = 7)
+
+# Per ecoregion
+mme_mhw_3B_label_ecoregion <- mme_mhw_3B %>%
+  group_by(Ecoregion) %>% 
+  summarise(count = n(),
+            r_val = round(cor.test(prop_mod_up, duration_sum)$estimate, 2),
+            p_val = round(cor.test(prop_mod_up, duration_sum)$p.value, 2),
+            x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
+  mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
+                           TRUE ~ paste0("p = ",p_val)))
+fig_5_ecoregion <- mme_mhw_3B %>%
+  # filter(`Damaged qualitative` != "No") %>%
+  ggplot(aes(x = duration_sum, y = prop_mod_up)) +
+  geom_smooth(method = "lm", se = F, colour = "black") +
+  geom_point() +
+  geom_label(data = mme_mhw_3B_label_ecoregion, alpha = 0.6, 
+             aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
+  scale_y_continuous(limits = c(0.4, 1.1), breaks = c(0.50, 0.75, 0.1)) +
+  scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
+  facet_wrap(~Ecoregion) +
+  coord_cartesian(expand = F) +
+  guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
+  # scale_colour_brewer(palette = "Set1") +
+  labs(y = "Pixel proportion moderate+", colour = "Taxa", x = "MHW days") +
+  theme(legend.position = c(0.8, 0.2))
+fig_5_ecoregion
+ggsave("figures/fig_5_ecoregion.png", fig_5_ecoregion, height = 10, width = 15)
 
 
 # Manuscript figure 1 -----------------------------------------------------
@@ -450,6 +524,13 @@ panel_C <- pixel_cat_pentad %>%
 # panel_C
 
 ## D: Barplot of Med surface area affected by Cat 2+ MHWs 
+# Shortened colour palette
+MHW_colours_no_mod <- c(
+  MHW_colours[2],
+  MHW_colours[3],
+  MHW_colours[4]
+)
+
 # Load data
 load("data/MHW_cat_summary_annual.RData")
 OISST_global <- readRDS("data/OISST_cat_daily_1992-2018_total.Rds") %>% 
@@ -485,8 +566,8 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
                    y = first_n_cum_prop_pentad, yend = first_n_cum_prop_pentad)) +
   geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack), 
              shape = 21, fill = "grey", show.legend = F) +
-  scale_fill_manual("Category", values = MHW_colours) +
-  scale_colour_manual("Category", values = MHW_colours) +
+  scale_fill_manual("Category", values = MHW_colours_no_mod) +
+  scale_colour_manual("Category", values = MHW_colours_no_mod) +
   # scale_y_continuous(limits = c(0, 20),
   #                    breaks = seq(5, 15, length.out = 3)) +
   scale_y_continuous(limits = c(0, 1),
@@ -494,11 +575,12 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
                      labels = c("25", "50", "75")) +
   scale_x_continuous(breaks = seq(1984, 2019, 7)) +
   guides(pattern_colour = FALSE, colour = FALSE) +
-  labs(title = "__(d)__   Surface area affected by category 'II Strong'+ MHWs",
+  # labs(title = "__(d)__   Surface area affected by category 'II Strong'+ MHWs",
+  labs(title = "Surface area affected by category 'II Strong'+ MHWs",
        y = "Cover (%)", x = "Year") +
   coord_cartesian(expand = F) +
-  theme(plot.title = ggtext::element_markdown(),
-        panel.border = element_rect(colour = "black", fill = NA),
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        # plot.title = ggtext::element_markdown(),
         legend.position = c(0.1, 0.85),
         axis.title = element_text(size = 12),
         axis.text = element_text(size = 10),
@@ -507,7 +589,7 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
 # panel_D
 
 ## Combine and save
-manu_fig_1 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D)
+manu_fig_1 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D, labels = c("(a)", "(b)", "(c)", "(d)"))
 ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 16)
 
 # Summary stats for text
