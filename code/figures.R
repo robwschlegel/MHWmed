@@ -41,7 +41,7 @@ lm(cat_n_prop_stack ~ t, OISST_global_summary)
 
 # Figure 2 ----------------------------------------------------------------
 
-# Barplots showing duration/iCum and MME
+# Barplots showing duration and MME
 # Use coastal pixels
 
 # Complete region/year grid
@@ -226,6 +226,86 @@ mme_reg_sub <- mme_reg %>%
 write_csv(mme_reg_sub, "data/MME_NW_SW.csv")
 
 
+
+# Figure 4 ----------------------------------------------------------------
+
+# Barplot showing relationship between MHW days and percent damage per ecoregion
+## Bar colour would show one of each of the five years
+##  Floating symbols would show percent mortality
+
+
+# MHW stats taken from the average for all ecoregion pixels
+# load("data/MHW_cat_region.RData")
+
+# Also create a version using the co-occurring pixels
+# load("data/MHW_cat_region_pixel.RData")
+
+# Use only the species from AX column: YES
+## Only take records that showed mortality
+mme_selected_2_mort <- filter(mme, selected_2 == "YES", `Damaged qualitative` != "No") %>% 
+  group_by(year, Ecoregion, lon, lat) %>% 
+  summarise(`Damaged percentage` = mean(`Damaged percentage`), .groups = "drop")
+
+# Match nearest pixels
+mme_mhw_pixel_match <- grid_match(mme_selected_2_mort_pixel[c("lon", "lat")],
+                                  MHW_pixels[c("lon", "lat")]) %>% 
+  dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon = lon.y, lat = lat.y) %>% 
+  distinct() %>% 
+  left_join(mme_selected_2_mort[,c("lon", "lat", "Ecoregion")], by = c("lon_mme" = "lon", "lat_mme" = "lat"))
+
+# Get MHW file subset
+file_sub <- data.frame(lat_index = seq_len(length(unique(med_sea_coords$lat))),
+                       lat = unique(med_sea_coords$lat)) %>% 
+  filter(lat %in% mme_mhw_pixel_match$lat)
+
+# Calculate broad MHW stats per region/matching pixels
+registerDoParallel(cores = 14)
+system.time(
+MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
+                                    mme_select = mme_selected_2_mort, pixel_sub = "full")
+) # 7 minutes on 14 cores
+system.time(
+MHW_cat_region_pixel <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
+                                    mme_select = mme_selected_2_mort, pixel_sub = "pixel")
+) # 68 seconds on 14 cores
+
+# MHW stats for JJASON period
+MHW_cat_region_JJASON <- MHW_cat_region %>% 
+  filter(year >= 2015, month %in% c("juin", "juil", "août", "sept", "oct", "nov")) %>% 
+  mutate(duration = duration/pixels) %>% 
+  group_by(region, year) %>% 
+  summarise(duration = sum(duration), .groups = "drop")
+MHW_cat_region_pixel_JJASON <- MHW_cat_region_pixel %>% 
+  filter(year >= 2015, month %in% c("juin", "juil", "août", "sept", "oct", "nov")) %>% 
+  mutate(duration = duration/pixels) %>% 
+  group_by(region, year) %>% 
+  summarise(duration = sum(duration), .groups = "drop")
+
+# Create region averages by all pixels
+mme_region <- mme_selected_2_mort %>% 
+  group_by(year, Ecoregion) %>% 
+  summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T), .groups = "drop")
+mme_mhw_region <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
+mme_mhw_region_pixel <- left_join(mme_region, MHW_cat_region_pixel_JJASON, by = c("Ecoregion" = "region", "year"))
+
+# Create plot
+fig_4_region_JJASON <- bar_dur_fig(mme_mhw_region, " for full ecoregion (JJASON)")
+ggsave("figures/fig_4_region_JJASON.png", fig_4_region_JJASON, height = 6, width = 10)
+fig_4_region_pixel_JJASON <- bar_dur_fig(mme_mhw_region_pixel, " for matching pixels (JJASON)")
+ggsave("figures/fig_4_region_pixel_JJASON.png", fig_4_region_pixel_JJASON, height = 6, width = 10)
+
+
+# Figure 5 ----------------------------------------------------------------
+
+# Analysis of mortality per pixel per ecoregion
+## Get MHW days and relate them to percentage of observations that have mortality
+## Also perform analysis against "severe" MME
+## Or all MME above the lowest category etc.
+## Use filter 3B for these analyses
+## Create a scatterplot figure showing these results, similar to ManuFig4
+## This may not work for all ecoregions
+
+
 # Manuscript figure 1 -----------------------------------------------------
 
 ## A: Map of temperature difference mean 1982-1986 vs 2015-2019
@@ -286,7 +366,7 @@ panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
   geom_segment(data = med_pentad, size = 2, lineend = "round",
                aes(x = start_year, xend = end_year, 
                    y = anom_pentad, yend = anom_pentad)) +
-  scale_fill_gradient2(low = "blue", high = "red") +
+  scale_fill_gradient2(low = "#4575b4", high = "#d73027") +
   scale_x_continuous(breaks = seq(1984, 2019, 7), expand = c(0, 0)) +
   labs(title = "__(b)__   Annual SST anomalies [1982 to 2019]",
        y = "Temperature (°C)", x = "Year") +
@@ -435,6 +515,9 @@ cat_daily_mean %>%
   group_by(year) %>% 
   summarise(first_n_cum_prop_sum = sum(first_n_cum_prop)) %>% 
   arrange(-first_n_cum_prop_sum)
+
+# Difference in SST from first to last pentad
+med_pentad$anom_pentad[7]-med_pentad$anom_pentad[1]
 
 
 # Manuscript figure 4 -----------------------------------------------------

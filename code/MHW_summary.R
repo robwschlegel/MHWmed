@@ -22,7 +22,7 @@ registerDoParallel(cores = 15)
 
 # All pixels
 # system.time(
-# MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F)
+# MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, mme_select = mme_select_4, .parallel = F)
 # ) # 38 seconds for 1 on 15 cores, ~6.5 minutes total
 # save(MHW_cat_region, file = "data/MHW_cat_region.RData")
 # readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")

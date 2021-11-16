@@ -26,6 +26,7 @@ lat_idx <- unique(med_sea_coords$lat)
 lon_idx <- unique(med_sea_coords$lon)
 
 # MME data
+suppressWarnings( # Supress warning about non-numeric values in lower/upper depth columns which aren't used
 mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME dataset.csv", guess_max = 1000) %>% 
   dplyr::rename(lon = Longitude, lat = Latitude, year = Year) %>% 
   mutate(year = as.numeric(gsub('[.]', '', as.character(year))),
@@ -44,6 +45,7 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
                                TRUE ~ Ecoregion),
          `Damaged qualitative` = ifelse(`Damaged qualitative` == "High", "Moderate", `Damaged qualitative`),
          `Damaged qualitative` = factor(`Damaged qualitative`, levels = c("No", "Low", "Moderate", "Severe")))
+)
 # unique(mme$Ecoregion)
 
 # Manually rename very long column names
@@ -432,7 +434,9 @@ region_proc <- function(file_name, region_coords_sub){
     left_join(cat_count, by = c("year", "month")) %>% 
     left_join(cat_surface, by = c("year", "month")) %>% 
     replace(is.na(.), 0) %>% 
-    mutate(region = region_coords_sub$Ecoregion[1]) %>% 
+    mutate(region = region_coords_sub$Ecoregion[1]) %>%
+    # left_join(region_coords_sub, by = c("lon", "lat")) %>% 
+    # dplyr::rename(region = Ecoregion) %>% 
     dplyr::select(region, year, month, pixels, surface, max_int:cum_int, duration, everything())
   
   # Clean up and exit
@@ -441,7 +445,7 @@ region_proc <- function(file_name, region_coords_sub){
 }
 
 # Regional/seasonal summary calculations
-region_calc <- function(region_name, pixel_sub = "full"){
+region_calc <- function(region_name, mme_select, pixel_sub = "full"){
   
   print(paste0("Began run on ",region_name," at ",Sys.time()))
   
@@ -456,7 +460,7 @@ region_calc <- function(region_name, pixel_sub = "full"){
     region_coords_sub <- left_join(coastal_coords, region_coords, by = c("lon", "lat")) %>% 
       na.omit()
   } else if(pixel_sub == "pixel"){
-    region_coords_sub <- grid_match(filter(mme_selected_4, Ecoregion == region_name)[c("lon", "lat")],
+    region_coords_sub <- grid_match(filter(mme_select, Ecoregion == region_name)[c("lon", "lat")],
                                     MHW_pixels[c("lon", "lat")]) %>% 
       select(lon.y, lat.y) %>% 
       dplyr::rename(lon = lon.y, lat = lat.y) %>% 
@@ -891,12 +895,12 @@ monthly_map_pixel <- function(var_choice,
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
   # Prepare MME points
-  mme_points <- mme_selected_4 %>% 
+  mme_points <- mme_select %>% 
     filter(year %in% year_range)
   
   # Complete region/year grid
   full_region_year_grid <- expand_grid(year = year_range, 
-                                       Ecoregion = unique(mme_selected_4$Ecoregion))
+                                       Ecoregion = unique(mme_select$Ecoregion))
   # Prepare MME labels
   mme_labels <- mme_points %>% 
     group_by(year, Ecoregion) %>% 
@@ -951,24 +955,33 @@ monthly_map_pixel <- function(var_choice,
 # Barplot of durations
 bar_dur_fig <- function(df, title_bit){
   df %>% 
-    ggplot(aes(x = year, y = duration)) +
-    geom_bar(aes(fill = icum), 
+    ggplot(aes(x = Ecoregion, y = duration)) +
+    geom_bar(aes(fill = as.factor(year)), 
              colour = "black",
              stat = "identity", 
              show.legend = T,
              position = "dodge",
              # position = position_stack(reverse = TRUE), 
-             width = 1) +
+             width = 0.8) +
+    geom_point(aes(y = `Damaged percentage`, fill = as.factor(year)), stroke = 4,
+               position = position_dodge(width = .8), shape = 21, colour = "red", size = 3,
+               show.legend = F) +
     # geom_label(aes(label = count_MME_mean)) +
-    geom_label(aes(label = paste0(mme_count,"/",site_count)), size = 3) +
-    scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
-    facet_wrap(~Ecoregion) +
-    scale_y_continuous(limits = c(0, 125), breaks = c(25, 50, 75, 100)) +
-    scale_x_continuous(breaks = c(2015, 2017, 2019)) +
+    # geom_label(aes(label = paste0(mme_count,"/",site_count)), size = 3) +
+    # scale_fill_viridis_c("Cumulative\nIntensity (°C days)", option = "B") +
+    scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
+    # facet_wrap(~Ecoregion) +
+    # scale_y_continuous(limits = c(0, 125), breaks = c(25, 50, 75, 100)) +
+    scale_y_continuous(limits = c(0, 125), breaks = c(25, 50, 75, 100),
+                       sec.axis = sec_axis(name = "MME Damage (%)", 
+                                           trans = ~ . + 0,
+                                           breaks = c(25, 50, 75, 100),
+                                           labels = c("25%", "50%", "75%", "100%"))) +
+    # scale_x_continuous(breaks = c(2015, 2017, 2019)) +
     coord_cartesian(expand = F) +
     labs(x = NULL, y = "MHW days", 
-         title = paste0("Total MHW days and cumulative intensity (°C days) per ecoregion/year", title_bit),
-         subtitle = "Labels show count of MME with damage at all depths: count/sites") +
+         title = paste0("Average MHW days (°C) per ecoregion/year", title_bit),
+         subtitle = "Red points show average percentage of damage during MME") +
     # guides(fill = guide_colourbar(title.position = "top", title.hjust = 0.5)) +
     theme(panel.border = element_rect(colour = "black", fill = NA),
           axis.text = element_text(size = 12),
