@@ -963,7 +963,8 @@ bar_dur_fig <- function(df, title_bit){
              position = "dodge",
              # position = position_stack(reverse = TRUE), 
              width = 0.8) +
-    geom_point(aes(y = `Damaged percentage`, fill = as.factor(year)), stroke = 4,
+    # geom_point(aes(y = `Damaged percentage`, fill = as.factor(year)), stroke = 4,
+    geom_point(aes(y = mme_prop, fill = as.factor(year)), stroke = 4,
                position = position_dodge(width = .8), shape = 21, colour = "red", size = 3,
                show.legend = F) +
     # geom_label(aes(label = count_MME_mean)) +
@@ -973,10 +974,10 @@ bar_dur_fig <- function(df, title_bit){
     # facet_wrap(~Ecoregion) +
     # scale_y_continuous(limits = c(0, 125), breaks = c(25, 50, 75, 100)) +
     scale_y_continuous(limits = c(0, 125), breaks = c(25, 50, 75, 100),
-                       sec.axis = sec_axis(name = "MME Damage (%)", 
+                       sec.axis = sec_axis(name = "MME records\n(proportion with damage)", 
                                            trans = ~ . + 0,
                                            breaks = c(25, 50, 75, 100),
-                                           labels = c("25%", "50%", "75%", "100%"))) +
+                                           labels = c("0.25", "0.50", "0.75", "1.00"))) +
     # scale_x_continuous(breaks = c(2015, 2017, 2019)) +
     coord_cartesian(expand = F) +
     labs(x = NULL, y = "MHW days", 

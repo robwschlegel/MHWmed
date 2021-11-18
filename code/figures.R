@@ -241,9 +241,18 @@ write_csv(mme_reg_sub, "data/MME_NW_SW.csv")
 
 # Use only the species from AX column: YES
 ## Only take records that showed mortality
-mme_selected_2_mort <- filter(mme, selected_2 == "YES", `Damaged qualitative` != "No") %>% 
-  group_by(year, Ecoregion, lon, lat) %>% 
-  summarise(`Damaged percentage` = mean(`Damaged percentage`), .groups = "drop")
+mme_selected_2_mort <- filter(mme, selected_2 == "YES") %>% #, `Damaged qualitative` != "No") %>% 
+  # group_by(year, Ecoregion, lon, lat) %>% 
+  # summarise(`Damaged percentage` = mean(`Damaged percentage`), .groups = "drop")
+  # summarise()
+  mutate(mme_damage = case_when(`Damaged qualitative` == "No" ~ 0, TRUE ~ 1)) %>% 
+  # group_by(lon, lat, year) %>% 
+  group_by(Ecoregion, year) %>% 
+  mutate(mme_record = n(),
+         mme_prop = sum(mme_damage)/mme_record) %>% 
+  # dplyr::select(lon, lat, year, mme_prop, mme_record) %>% 
+  dplyr::select(Ecoregion, year, mme_prop, mme_record) %>% 
+  distinct()
 
 # Match nearest pixels
 mme_mhw_pixel_match <- grid_match(mme_selected_2_mort_pixel[c("lon", "lat")],
@@ -282,8 +291,10 @@ MHW_cat_region_pixel_JJASON <- MHW_cat_region_pixel %>%
 
 # Create region averages by all pixels
 mme_region <- mme_selected_2_mort %>% 
-  group_by(year, Ecoregion) %>% 
-  summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T), .groups = "drop")
+  group_by(year, Ecoregion) %>%
+  mutate(mme_prop = mme_prop*100) %>% 
+  filter(Ecoregion == "Northwestern Mediterranean")
+  # summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T), .groups = "drop")
 mme_mhw_region <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
 mme_mhw_region_pixel <- left_join(mme_region, MHW_cat_region_pixel_JJASON, by = c("Ecoregion" = "region", "year"))
 
@@ -301,27 +312,31 @@ ggsave("figures/fig_4_region_pixel_JJASON.png", fig_4_region_pixel_JJASON, heigh
 load("data/MHW_cat_pixel_annual_JJASON.RData")
 
 ## Use filter 3B for these analyses
-mme_3B <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
-  group_by(lon, lat, year, Ecoregion, `Damaged qualitative`) %>%
-  summarise(count = n(), .groups = "drop") %>% 
-  group_by(lon, lat, year, Ecoregion) %>% 
-  mutate(total_n = sum(count),
-         prop_n = count/total_n) %>%
+# mme_3B <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
+mme_3B <- mme %>%
+  filter(Ecoregion == "Northwestern Mediterranean") %>%
+  mutate(mme_damage = case_when(`Damaged qualitative` == "No" ~ 0, TRUE ~ 1)) %>% 
+  group_by(Ecoregion, `Area Monitored`, lon, lat, year) %>%
+  # group_by(Ecoregion, year) %>% 
+  mutate(mme_record = n(),
+         mme_prop = sum(mme_damage)/mme_record) %>% 
   ungroup() %>% 
-  filter(`Damaged qualitative` != "No") %>% 
-  group_by(lon, lat, year, Ecoregion, total_n) %>% 
-  summarise(prop_mod_up = sum(prop_n), .groups = "drop")
-  # group_by(Ecoregion, year, lon, lat, Species) %>% 
-  # summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T), .groups = "drop")
+  dplyr::select(Ecoregion, `Area Monitored`, lon, lat, year, mme_prop, mme_record) %>%
+  # dplyr::select(Ecoregion, year, mme_prop, mme_record) %>% 
+  distinct()
 
 # Match nearest pixels
-mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
+# mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
+mme_mhw_pixel_match <- grid_match(mme[c("lon", "lat")],
                                   MHW_pixels[c("lon", "lat")]) %>% 
   dplyr::rename(lon = lon.x, lat = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
   distinct()
 mme_mhw_3B <- mme_3B %>% 
   left_join(mme_mhw_pixel_match, by = c("lon", "lat")) %>% 
-  left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat"))
+  left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
+  group_by(Ecoregion, `Area Monitored`) %>% 
+  summarise(duration_sum = mean(duration_sum, na.rm = T),
+            mme_prop = mean(mme_prop, na.rm = T), .groups = "drop")
 
 # Perform analysis against "severe" MME
 ## Or all MME above the lowest category etc.
@@ -330,20 +345,20 @@ mme_mhw_3B <- mme_3B %>%
 mme_mhw_3B_label_all <- mme_mhw_3B %>%
   # filter(`Damaged qualitative` != "No") %>% 
   summarise(count = n(),
-            r_val = round(cor.test(prop_mod_up, duration_sum)$estimate, 2),
-            p_val = round(cor.test(prop_mod_up, duration_sum)$p.value, 2),
+            r_val = round(cor.test(mme_prop, duration_sum)$estimate, 2),
+            p_val = round(cor.test(mme_prop, duration_sum)$p.value, 2),
             x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
   mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
                            TRUE ~ paste0("p = ",p_val)))
 fig_5_all <- mme_mhw_3B %>% 
   # filter(`Damaged qualitative` != "No") %>% 
-  ggplot(aes(x = duration_sum, y = prop_mod_up)) +
+  ggplot(aes(x = duration_sum, y = mme_prop)) +
   geom_smooth(method = "lm", se = F, colour = "black") +
   geom_point() +
   geom_label(data = mme_mhw_3B_label_all, alpha = 0.6, 
              aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
-  scale_y_continuous(limits = c(0.4, 1.1), breaks = c(0.50, 0.75, 0.1)) +
-  scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
+  scale_y_continuous(limits = c(-0.1, 1.1), breaks = c(0.25, 0.50, 0.75, 0.1)) +
+  # scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
   coord_cartesian(expand = F) +
   guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
   # scale_colour_brewer(palette = "Set1") +
@@ -363,7 +378,7 @@ mme_mhw_3B_label_ecoregion <- mme_mhw_3B %>%
                            TRUE ~ paste0("p = ",p_val)))
 fig_5_ecoregion <- mme_mhw_3B %>%
   # filter(`Damaged qualitative` != "No") %>%
-  ggplot(aes(x = duration_sum, y = prop_mod_up)) +
+  ggplot(aes(x = duration_sum, y = mme_prop)) +
   geom_smooth(method = "lm", se = F, colour = "black") +
   geom_point() +
   geom_label(data = mme_mhw_3B_label_ecoregion, alpha = 0.6, 
