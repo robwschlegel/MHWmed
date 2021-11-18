@@ -292,15 +292,45 @@ MHW_cat_region_pixel_JJASON <- MHW_cat_region_pixel %>%
 # Create region averages by all pixels
 mme_region <- mme_selected_2_mort %>% 
   group_by(year, Ecoregion) %>%
-  mutate(mme_prop = mme_prop*100) %>% 
+  mutate(mme_prop = (mme_prop*100)+20) %>%
   filter(Ecoregion == "Northwestern Mediterranean")
   # summarise(`Damaged percentage` = mean(`Damaged percentage`, na.rm = T), .groups = "drop")
 mme_mhw_region <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
-mme_mhw_region_pixel <- left_join(mme_region, MHW_cat_region_pixel_JJASON, by = c("Ecoregion" = "region", "year"))
 
 # Create plot
-fig_4_region_JJASON <- bar_dur_fig(mme_mhw_region, " for full ecoregion (JJASON)")
+ggplot(mme_mhw_region, aes(x = year, y = duration)) +
+  geom_bar(aes(fill = as.factor(year)), 
+           colour = "black",
+           stat = "identity", 
+           show.legend = F,
+           # position = "dodge",
+           width = 0.8) +
+  geom_point(aes(y = mme_prop)) +
+  scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
+  scale_y_continuous(limits = c(0, 130), breaks = c(20, 40, 60), expand = c(0, 0),
+                     sec.axis = sec_axis(name = "MME records\n(proportion with damage)", 
+                                         trans = ~ . + 0,
+                                         breaks = c(45, 70, 95),
+                                         labels = c("0.25", "0.50", "0.75"))) +
+  # scale_x_continuous(breaks = c(2015, 2017, 2019)) +
+  # coord_cartesian(expand = F) +
+  labs(x = NULL, y = "MHW days", 
+       title = paste0("Average MHW days (°C) per year in NW Med"),
+       subtitle = "Points show proportion of records with mortality") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        legend.position = "bottom",
+        legend.key.width = unit(1, "cm"),
+        panel.background = element_rect(fill = "grey90"), 
+        strip.text = element_text(size = 12))
+
 ggsave("figures/fig_4_region_JJASON.png", fig_4_region_JJASON, height = 6, width = 10)
+
+
+mme_mhw_region_pixel <- left_join(mme_region, MHW_cat_region_pixel_JJASON, by = c("Ecoregion" = "region", "year"))
 fig_4_region_pixel_JJASON <- bar_dur_fig(mme_mhw_region_pixel, " for matching pixels (JJASON)")
 ggsave("figures/fig_4_region_pixel_JJASON.png", fig_4_region_pixel_JJASON, height = 6, width = 10)
 
@@ -312,37 +342,43 @@ ggsave("figures/fig_4_region_pixel_JJASON.png", fig_4_region_pixel_JJASON, heigh
 load("data/MHW_cat_pixel_annual_JJASON.RData")
 
 ## Use filter 3B for these analyses
-# mme_3B <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% 
-mme_3B <- mme %>%
+mme_3B <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>%
+# mme_3B <- filter(mme, selected_2 == "YES") %>%
+# mme_3B <- mme %>% 
+  # filter(Taxa != "Tracheophyta") %>%
   filter(Ecoregion == "Northwestern Mediterranean") %>%
-  mutate(mme_damage = case_when(`Damaged qualitative` == "No" ~ 0, TRUE ~ 1)) %>% 
+  mutate(mme_damage = case_when(`Damaged qualitative` %in% c("No") ~ 0, TRUE ~ 1)) %>% 
   group_by(Ecoregion, `Area Monitored`, lon, lat, year) %>%
   # group_by(Ecoregion, year) %>% 
   mutate(mme_record = n(),
-         mme_prop = sum(mme_damage)/mme_record) %>% 
+         mme_prop = sum(mme_damage)/mme_record,
+         damage_mean = mean(`Damaged percentage`, na.rm = T)) %>% 
   ungroup() %>% 
-  dplyr::select(Ecoregion, `Area Monitored`, lon, lat, year, mme_prop, mme_record) %>%
+  dplyr::select(Ecoregion, `Area Monitored`, lon, lat, year, mme_prop, mme_record, damage_mean) %>%
   # dplyr::select(Ecoregion, year, mme_prop, mme_record) %>% 
   distinct()
 
 # Match nearest pixels
-# mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
-mme_mhw_pixel_match <- grid_match(mme[c("lon", "lat")],
+mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
                                   MHW_pixels[c("lon", "lat")]) %>% 
   dplyr::rename(lon = lon.x, lat = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
   distinct()
 mme_mhw_3B <- mme_3B %>% 
   left_join(mme_mhw_pixel_match, by = c("lon", "lat")) %>% 
   left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
-  group_by(Ecoregion, `Area Monitored`) %>% 
+  mutate(duration_sum = replace_na(duration_sum, 0)) %>% 
+  group_by(Ecoregion, `Area Monitored`, year) %>%
+  # group_by(Ecoregion, `Area Monitored`) %>% 
   summarise(duration_sum = mean(duration_sum, na.rm = T),
-            mme_prop = mean(mme_prop, na.rm = T), .groups = "drop")
+            mme_prop = mean(mme_prop, na.rm = T),
+            damage_mean = mean(damage_mean, na.rm = T), .groups = "drop")
 
 # Perform analysis against "severe" MME
 ## Or all MME above the lowest category etc.
 ## Create a scatterplot figure showing these results, similar to ManuFig4
 ## This may not work for all ecoregions
 mme_mhw_3B_label_all <- mme_mhw_3B %>%
+  # group_by(Ecoregion) %>% 
   # filter(`Damaged qualitative` != "No") %>% 
   summarise(count = n(),
             r_val = round(cor.test(mme_prop, duration_sum)$estimate, 2),
@@ -357,12 +393,13 @@ fig_5_all <- mme_mhw_3B %>%
   geom_point() +
   geom_label(data = mme_mhw_3B_label_all, alpha = 0.6, 
              aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
-  scale_y_continuous(limits = c(-0.1, 1.1), breaks = c(0.25, 0.50, 0.75, 0.1)) +
+  scale_y_continuous(limits = c(-0.1, 1.1), breaks = c(0, 0.25, 0.50, 0.75, 1), 
+                     labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
   # scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
   coord_cartesian(expand = F) +
   guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
   # scale_colour_brewer(palette = "Set1") +
-  labs(y = "Pixel proportion moderate+", x = "MHW days") +
+  labs(y = "Proportion mortality", x = "MHW days") +
   theme(legend.position = "bottom")
 fig_5_all
 ggsave("figures/fig_5_all.png", fig_5_all, height = 6, width = 7)
@@ -394,6 +431,81 @@ fig_5_ecoregion <- mme_mhw_3B %>%
 fig_5_ecoregion
 ggsave("figures/fig_5_ecoregion.png", fig_5_ecoregion, height = 10, width = 15)
 
+
+# Figure 6 ----------------------------------------------------------------
+
+# The trends in SST and MHW days per ecoregion
+load("data/MHW_cat_pixel_annual.RData")
+
+# Analysis for trends in SST, MHW days and cumulative intensity
+trend_analysis <- function(file_name, month_sub = c(1:12)){
+  
+  # Load a full file
+  res_full <- readRDS(file_name)
+  
+  # Get annual stats
+  res_annual <- res_full %>% 
+    dplyr::select(-cat) %>% 
+    unnest(event) %>% 
+    filter(row_number() %% 2 == 1) %>% 
+    unnest(event) %>% 
+    ungroup() %>% 
+    mutate(year = lubridate::year(t),
+           month = lubridate::month(t),
+           cum_int = (temp-thresh)*event) %>%
+    filter(month %in% month_sub) %>% 
+    group_by(lon, lat, year) %>% 
+    summarise(temp_annual = mean(temp),
+              cum_int_sum = sum(cum_int),
+              dur_sum = sum(event), .groups = "drop")
+  
+  # Decadal trends
+  res_stats <- plyr::ddply(res_annual, c("lon", "lat"), mean_trend_calc, .parallel = F)
+  
+  # CLean and exit
+  rm(SST_sub, SST_pixel_annual); gc()
+  return(SST_pixel_stats)
+  
+}
+
+# Function for SST trend calculations
+dec_trend_calc <- function(df){
+  
+  # Decadal trends
+  dec_trend_temp <- broom::tidy(lm(temp_annual ~ year, df)) %>% 
+    slice(2) %>% 
+    mutate(dec_trend = round(estimate*10, 3),
+           p.value = round(p.value, 4)) %>% 
+    dplyr::select(dec_trend, p.value)
+  dec_trend <- broom::tidy(lm(dur_annual ~ year, df)) %>% 
+    slice(2) %>% 
+    mutate(dec_trend = round(estimate*10, 3),
+           p.value = round(p.value, 4)) %>% 
+    dplyr::select(dec_trend, p.value)
+  
+  # Total means
+  dur_total <- df %>% 
+    summarise(dur_total = round(mean(dur_annual, na.rm = T), 1),.groups = "drop")
+  
+  # Total means
+  mean_total <- df %>% 
+    summarise(temp_total = round(mean(temp_annual, na.rm = T), 2), .groups = "drop")
+  
+  # Combine and exit
+  res <- cbind(dec_trend, mean_total)
+  rm(df, dec_trend, mean_total); gc()
+  return(res)
+}
+
+
+# Load lon files
+registerDoParallel(cores = 50)
+system.time(
+  SST_trends <- plyr::ldply(unique(ecoregion_pixels$lon), sst_analysis, .parallel = T, sub_pixels = ecoregion_pixels)
+) # 49 minutes on 50 cores
+gc()
+save(SST_trends, file = "data/SST_trends.RData")
+load("data/SST_trends.RData")
 
 # Manuscript figure 1 -----------------------------------------------------
 
