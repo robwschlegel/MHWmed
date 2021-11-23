@@ -7,6 +7,9 @@
 # The project-wide functions
 source("code/functions.R")
 
+# The 7 in situ sites
+insitu_sites <- read_delim("metadata/7sites_ID_lon_lat.csv", delim = ";")
+
 
 # Figure 1 ----------------------------------------------------------------
 
@@ -232,7 +235,6 @@ write_csv(mme_reg_sub, "data/MME_NW_SW.csv")
 ## Bar colour would show one of each of the five years
 ##  Floating symbols would show percent mortality
 
-
 # MHW stats taken from the average for all ecoregion pixels
 # load("data/MHW_cat_region.RData")
 
@@ -255,39 +257,40 @@ mme_selected_2_mort <- filter(mme, selected_2 == "YES") %>% #, `Damaged qualitat
   distinct()
 
 # Match nearest pixels
-mme_mhw_pixel_match <- grid_match(mme_selected_2_mort_pixel[c("lon", "lat")],
-                                  MHW_pixels[c("lon", "lat")]) %>% 
-  dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon = lon.y, lat = lat.y) %>% 
-  distinct() %>% 
-  left_join(mme_selected_2_mort[,c("lon", "lat", "Ecoregion")], by = c("lon_mme" = "lon", "lat_mme" = "lat"))
+# mme_mhw_pixel_match <- grid_match(mme_selected_2_mort_pixel[c("lon", "lat")],
+#                                   MHW_pixels[c("lon", "lat")]) %>% 
+#   dplyr::rename(lon_mme = lon.x, lat_mme = lat.x, lon = lon.y, lat = lat.y) %>% 
+#   distinct() %>% 
+#   left_join(mme_selected_2_mort[,c("lon", "lat", "Ecoregion")], by = c("lon_mme" = "lon", "lat_mme" = "lat"))
 
 # Get MHW file subset
-file_sub <- data.frame(lat_index = seq_len(length(unique(med_sea_coords$lat))),
-                       lat = unique(med_sea_coords$lat)) %>% 
-  filter(lat %in% mme_mhw_pixel_match$lat)
+# file_sub <- data.frame(lat_index = seq_len(length(unique(med_sea_coords$lat))),
+#                        lat = unique(med_sea_coords$lat)) %>% 
+#   filter(lat %in% mme_mhw_pixel_match$lat)
 
 # Calculate broad MHW stats per region/matching pixels
-registerDoParallel(cores = 14)
-system.time(
-MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
-                                    mme_select = mme_selected_2_mort, pixel_sub = "full")
-) # 7 minutes on 14 cores
-system.time(
-MHW_cat_region_pixel <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
-                                    mme_select = mme_selected_2_mort, pixel_sub = "pixel")
-) # 68 seconds on 14 cores
+# registerDoParallel(cores = 14)
+# system.time(
+# MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
+#                                     mme_select = mme_selected_2_mort, pixel_sub = "full")
+# ) # 7 minutes on 14 cores
+# system.time(
+# MHW_cat_region_pixel <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
+#                                     mme_select = mme_selected_2_mort, pixel_sub = "pixel")
+# ) # 68 seconds on 14 cores
 
 # MHW stats for JJASON period
-MHW_cat_region_JJASON <- MHW_cat_region %>% 
-  filter(year >= 2015, month %in% c("juin", "juil", "août", "sept", "oct", "nov")) %>% 
-  mutate(duration = duration/pixels) %>% 
-  group_by(region, year) %>% 
+load("data/MHW_cat_region.RData")
+MHW_cat_region_JJASON <- MHW_cat_region %>%
+  filter(year >= 2015, month %in% c("juin", "juil", "août", "sept", "oct", "nov")) %>%
+  mutate(duration = duration/pixels) %>%
+  group_by(region, year) %>%
   summarise(duration = sum(duration), .groups = "drop")
-MHW_cat_region_pixel_JJASON <- MHW_cat_region_pixel %>% 
-  filter(year >= 2015, month %in% c("juin", "juil", "août", "sept", "oct", "nov")) %>% 
-  mutate(duration = duration/pixels) %>% 
-  group_by(region, year) %>% 
-  summarise(duration = sum(duration), .groups = "drop")
+# MHW_cat_region_pixel_JJASON <- MHW_cat_region_pixel %>% 
+#   filter(year >= 2015, month %in% c("juin", "juil", "août", "sept", "oct", "nov")) %>% 
+#   mutate(duration = duration/pixels) %>% 
+#   group_by(region, year) %>% 
+#   summarise(duration = sum(duration), .groups = "drop")
 
 # Create region averages by all pixels
 mme_region <- mme_selected_2_mort %>% 
@@ -298,24 +301,24 @@ mme_region <- mme_selected_2_mort %>%
 mme_mhw_region <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
 
 # Create plot
-ggplot(mme_mhw_region, aes(x = year, y = duration)) +
+fig_4_region_JJASON <- ggplot(mme_mhw_region, aes(x = year, y = duration)) +
   geom_bar(aes(fill = as.factor(year)), 
            colour = "black",
            stat = "identity", 
            show.legend = F,
            # position = "dodge",
            width = 0.8) +
-  geom_point(aes(y = mme_prop)) +
+  geom_point(aes(y = mme_prop), size = 5) +
   scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
-  scale_y_continuous(limits = c(0, 130), breaks = c(20, 40, 60), expand = c(0, 0),
-                     sec.axis = sec_axis(name = "MME records\n(proportion with damage)", 
+  scale_y_continuous(limits = c(0, 110), breaks = c(20, 40, 60, 80, 100), expand = c(0, 0),
+                     sec.axis = sec_axis(name = "MME records\n(proportion with mortality)", 
                                          trans = ~ . + 0,
-                                         breaks = c(45, 70, 95),
-                                         labels = c("0.25", "0.50", "0.75"))) +
+                                         breaks = c(20, 45, 70, 95),
+                                         labels = c("0.00", "0.25", "0.50", "0.75"))) +
   # scale_x_continuous(breaks = c(2015, 2017, 2019)) +
   # coord_cartesian(expand = F) +
   labs(x = NULL, y = "MHW days", 
-       title = paste0("Average MHW days (°C) per year in NW Med"),
+       title = "Average MHW days per year in NW Med",
        subtitle = "Points show proportion of records with mortality") +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         axis.text = element_text(size = 12),
@@ -326,13 +329,13 @@ ggplot(mme_mhw_region, aes(x = year, y = duration)) +
         legend.key.width = unit(1, "cm"),
         panel.background = element_rect(fill = "grey90"), 
         strip.text = element_text(size = 12))
-
+fig_4_region_JJASON
 ggsave("figures/fig_4_region_JJASON.png", fig_4_region_JJASON, height = 6, width = 10)
 
 
-mme_mhw_region_pixel <- left_join(mme_region, MHW_cat_region_pixel_JJASON, by = c("Ecoregion" = "region", "year"))
-fig_4_region_pixel_JJASON <- bar_dur_fig(mme_mhw_region_pixel, " for matching pixels (JJASON)")
-ggsave("figures/fig_4_region_pixel_JJASON.png", fig_4_region_pixel_JJASON, height = 6, width = 10)
+# mme_mhw_region_pixel <- left_join(mme_region, MHW_cat_region_pixel_JJASON, by = c("Ecoregion" = "region", "year"))
+# fig_4_region_pixel_JJASON <- bar_dur_fig(mme_mhw_region_pixel, " for matching pixels (JJASON)")
+# ggsave("figures/fig_4_region_pixel_JJASON.png", fig_4_region_pixel_JJASON, height = 6, width = 10)
 
 
 # Figure 5 ----------------------------------------------------------------
@@ -378,7 +381,7 @@ mme_mhw_3B <- mme_3B %>%
 ## Create a scatterplot figure showing these results, similar to ManuFig4
 ## This may not work for all ecoregions
 mme_mhw_3B_label_all <- mme_mhw_3B %>%
-  # group_by(Ecoregion) %>% 
+  # group_by(year) %>%
   # filter(`Damaged qualitative` != "No") %>% 
   summarise(count = n(),
             r_val = round(cor.test(mme_prop, duration_sum)$estimate, 2),
@@ -390,129 +393,344 @@ fig_5_all <- mme_mhw_3B %>%
   # filter(`Damaged qualitative` != "No") %>% 
   ggplot(aes(x = duration_sum, y = mme_prop)) +
   geom_smooth(method = "lm", se = F, colour = "black") +
-  geom_point() +
+  geom_point(aes(fill = as.factor(year)), shape = 21, size = 5, alpha = 0.9, show.legend = F) +
   geom_label(data = mme_mhw_3B_label_all, alpha = 0.6, 
              aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
+  scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
   scale_y_continuous(limits = c(-0.1, 1.1), breaks = c(0, 0.25, 0.50, 0.75, 1), 
                      labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
   # scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
   coord_cartesian(expand = F) +
-  guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
+  # guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
   # scale_colour_brewer(palette = "Set1") +
-  labs(y = "Proportion mortality", x = "MHW days") +
-  theme(legend.position = "bottom")
+  labs(y = "MME records\n(proportion with mortality)", x = "MHW days (per year; JJASON)",
+       title = "MHW days and MME records per monitoring area in the NW Med",
+       subtitle = "MHW days per year during JJASON period and proportion of MME records with damage") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14),
+        legend.text = element_text(size = 12),
+        legend.title = element_text(size = 14),
+        legend.position = "bottom",
+        legend.key.width = unit(1, "cm"),
+        panel.background = element_rect(fill = "grey90"), 
+        strip.text = element_text(size = 12))
 fig_5_all
 ggsave("figures/fig_5_all.png", fig_5_all, height = 6, width = 7)
 
 # Per ecoregion
-mme_mhw_3B_label_ecoregion <- mme_mhw_3B %>%
-  group_by(Ecoregion) %>% 
-  summarise(count = n(),
-            r_val = round(cor.test(prop_mod_up, duration_sum)$estimate, 2),
-            p_val = round(cor.test(prop_mod_up, duration_sum)$p.value, 2),
-            x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
-  mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
-                           TRUE ~ paste0("p = ",p_val)))
-fig_5_ecoregion <- mme_mhw_3B %>%
-  # filter(`Damaged qualitative` != "No") %>%
-  ggplot(aes(x = duration_sum, y = mme_prop)) +
-  geom_smooth(method = "lm", se = F, colour = "black") +
-  geom_point() +
-  geom_label(data = mme_mhw_3B_label_ecoregion, alpha = 0.6, 
-             aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
-  scale_y_continuous(limits = c(0.4, 1.1), breaks = c(0.50, 0.75, 0.1)) +
-  scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
-  facet_wrap(~Ecoregion) +
-  coord_cartesian(expand = F) +
-  guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
-  # scale_colour_brewer(palette = "Set1") +
-  labs(y = "Pixel proportion moderate+", colour = "Taxa", x = "MHW days") +
-  theme(legend.position = c(0.8, 0.2))
-fig_5_ecoregion
-ggsave("figures/fig_5_ecoregion.png", fig_5_ecoregion, height = 10, width = 15)
+# mme_mhw_3B_label_ecoregion <- mme_mhw_3B %>%
+#   group_by(Ecoregion) %>% 
+#   summarise(count = n(),
+#             r_val = round(cor.test(mme_prop, duration_sum)$estimate, 2),
+#             p_val = round(cor.test(mme_prop, duration_sum)$p.value, 2),
+#             x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
+#   mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
+#                            TRUE ~ paste0("p = ",p_val)))
+# fig_5_ecoregion <- mme_mhw_3B %>%
+#   na.omit() %>% 
+#   # filter(`Damaged qualitative` != "No") %>%
+#   ggplot(aes(x = duration_sum, y = mme_prop)) +
+#   geom_smooth(method = "lm", se = F, colour = "black") +
+#   geom_point() +
+#   geom_label(data = mme_mhw_3B_label_ecoregion, alpha = 0.6, 
+#              aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
+#   scale_y_continuous(limits = c(0.4, 1.1), breaks = c(0.50, 0.75, 0.1)) +
+#   # scale_x_continuous(limits = c(0, 125), breaks = c(30, 60, 90, 120)) +
+#   facet_wrap(~Ecoregion) +
+#   coord_cartesian(expand = F) +
+#   guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
+#   # scale_colour_brewer(palette = "Set1") +
+#   labs(y = "Pixel proportion moderate+", colour = "Taxa", x = "MHW days") +
+#   theme(legend.position = c(0.8, 0.2))
+# fig_5_ecoregion
+# ggsave("figures/fig_5_ecoregion.png", fig_5_ecoregion, height = 10, width = 15)
 
 
 # Figure 6 ----------------------------------------------------------------
 
 # The trends in SST and MHW days per ecoregion
-load("data/MHW_cat_pixel_annual.RData")
-
-# Analysis for trends in SST, MHW days and cumulative intensity
-trend_analysis <- function(file_name, month_sub = c(1:12)){
-  
-  # Load a full file
-  res_full <- readRDS(file_name)
-  
-  # Get annual stats
-  res_annual <- res_full %>% 
-    dplyr::select(-cat) %>% 
-    unnest(event) %>% 
-    filter(row_number() %% 2 == 1) %>% 
-    unnest(event) %>% 
-    ungroup() %>% 
-    mutate(year = lubridate::year(t),
-           month = lubridate::month(t),
-           cum_int = (temp-thresh)*event) %>%
-    filter(month %in% month_sub) %>% 
-    group_by(lon, lat, year) %>% 
-    summarise(temp_annual = mean(temp),
-              cum_int_sum = sum(cum_int),
-              dur_sum = sum(event), .groups = "drop")
-  
-  # Decadal trends
-  res_stats <- plyr::ddply(res_annual, c("lon", "lat"), mean_trend_calc, .parallel = F)
-  
-  # CLean and exit
-  rm(SST_sub, SST_pixel_annual); gc()
-  return(SST_pixel_stats)
-  
-}
+load("data/MHW_clim_pixel_annual.RData")
 
 # Function for SST trend calculations
+# df <- filter(MHW_clim_pixel_annual, 
+#              lon == MHW_clim_pixel_annual$lon[1], lat == MHW_clim_pixel_annual$lat[1])
 dec_trend_calc <- function(df){
   
   # Decadal trends
-  dec_trend_temp <- broom::tidy(lm(temp_annual ~ year, df)) %>% 
+  dec_trend_temp <- broom::tidy(lm(temp ~ year, df)) %>% 
     slice(2) %>% 
-    mutate(dec_trend = round(estimate*10, 3),
-           p.value = round(p.value, 4)) %>% 
-    dplyr::select(dec_trend, p.value)
-  dec_trend <- broom::tidy(lm(dur_annual ~ year, df)) %>% 
+    mutate(dec_trend_temp = round(estimate*10, 3),
+           p.value_temp = round(p.value, 4)) %>% 
+    dplyr::select(dec_trend_temp, p.value_temp)
+  dec_trend_dur <- broom::tidy(lm(mhw_days ~ year, df)) %>% 
     slice(2) %>% 
-    mutate(dec_trend = round(estimate*10, 3),
-           p.value = round(p.value, 4)) %>% 
-    dplyr::select(dec_trend, p.value)
+    mutate(dec_trend_dur = round(estimate*10, 3),
+           p.value_dur = round(p.value, 4)) %>% 
+    dplyr::select(dec_trend_dur, p.value_dur)
   
   # Total means
-  dur_total <- df %>% 
-    summarise(dur_total = round(mean(dur_annual, na.rm = T), 1),.groups = "drop")
-  
-  # Total means
-  mean_total <- df %>% 
-    summarise(temp_total = round(mean(temp_annual, na.rm = T), 2), .groups = "drop")
+  total_temp <- df %>% 
+    summarise(temp_average = round(mean(temp, na.rm = T), 2), .groups = "drop")
+  total_dur <- df %>% 
+    summarise(dur_average = round(mean(mhw_days, na.rm = T), 1),.groups = "drop")
   
   # Combine and exit
-  res <- cbind(dec_trend, mean_total)
-  rm(df, dec_trend, mean_total); gc()
+  res <- cbind(total_temp, dec_trend_temp, total_dur, dec_trend_dur)
+  rm(df, dec_trend_temp, dec_trend_dur, total_temp, total_dur); gc()
   return(res)
 }
 
+# Convenience wrapper for summarising stats
+trend_summarise <- function(df){
+  df %>% 
+    summarise(temp_average_mean = round(mean(temp_average, na.rm = T), 2),
+              temp_average_range = max(temp_average, na.rm = T) - min(temp_average, na.rm = T),
+              temp_average_sd = round(sd(temp_average, na.rm = T), 2),
+              dec_trend_temp_mean = round(mean(dec_trend_temp, na.rm = T), 2),
+              dec_trend_temp_range = max(dec_trend_temp, na.rm = T) - min(dec_trend_temp, na.rm = T),
+              dec_trend_temp_sd = round(sd(dec_trend_temp, na.rm = T), 2),
+              dur_average_mean = round(mean(dur_average, na.rm = T), 2),
+              dur_average_range = max(dur_average, na.rm = T) - min(temp_average, na.rm = T),
+              dur_average_sd = round(sd(dur_average, na.rm = T), 2),
+              dec_trend_dur_mean = round(mean(dec_trend_dur, na.rm = T), 2),
+              dec_trend_dur_range = max(dec_trend_dur, na.rm = T) - min(dec_trend_temp, na.rm = T),
+              dec_trend_dur_sd = round(sd(dec_trend_dur, na.rm = T), 2), .groups = "drop") %>% 
+    arrange(-dec_trend_temp_mean, -dec_trend_dur_mean) %>% 
+    mutate(rank = 1:n())
+}
+
+# Prep data
+MHW_clim_pixel_annual_ecoregion <- MHW_clim_pixel_annual %>% 
+  left_join(med_regions, by = c("lon", "lat")) %>% 
+  filter(!is.na(Ecoregion))
 
 # Load lon files
-registerDoParallel(cores = 50)
+registerDoParallel(cores = 12)
 system.time(
-  SST_trends <- plyr::ldply(unique(ecoregion_pixels$lon), sst_analysis, .parallel = T, sub_pixels = ecoregion_pixels)
-) # 49 minutes on 50 cores
+  SST_MHW_trends <- plyr::ddply(MHW_clim_pixel_annual_ecoregion, c("Ecoregion", "lon", "lat"), dec_trend_calc, .parallel = T)
+) # xxx minutes on 50 cores
 gc()
-save(SST_trends, file = "data/SST_trends.RData")
-load("data/SST_trends.RData")
+save(SST_MHW_trends, file = "data/SST_MHW_trends.RData")
+load("data/SST_MHW_trends.RData")
+
+## Per ecoregion stats
+# Average per ecoregion
+SST_MHW_trends_ecoregion <- SST_MHW_trends %>% 
+  group_by(Ecoregion) %>%
+  trend_summarise()
+
+# Average per province
+SST_MHW_trends_province <- SST_MHW_trends %>% 
+  left_join(MEOW[,c("ECOREGION", "PROVINCE")], by = c("Ecoregion" = "ECOREGION")) %>% 
+  group_by(PROVINCE) %>%
+  trend_summarise()
+
+# Create table for plotting
+med_trends <- bind_rows(SST_MHW_trends_ecoregion, SST_MHW_trends_province) %>% 
+  dplyr::select(PROVINCE, everything()) %>% 
+  mutate(PROVINCE = "Mediterranean Sea",
+         Ecoregion = ifelse(is.na(Ecoregion), "ALL", Ecoregion))
+
+# Map of SST mean per pixel
+map_SST_total <- SST_MHW_trends %>%
+  na.omit() %>% 
+  mutate(temp_average_05 = quantile(temp_average, probs = 0.05),
+         temp_average_95 = quantile(temp_average, probs = 0.95),
+         temp_average = case_when(temp_average > temp_average_95 ~ temp_average_95,
+                                  temp_average < temp_average_05 ~ temp_average_05,
+                                  TRUE ~ temp_average)) %>% 
+  ggplot() +
+  geom_tile(aes(fill = temp_average, x = lon, y = lat)) +
+  geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
+  geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
+  scale_fill_viridis_c(option = "A") +
+  labs(x = NULL, y = NULL, fill = "SST (°C)\n(annual average)") +
+  coord_sf(expand = F,
+           xlim = c(min(med_regions$lon), max(med_regions$lon)),
+           ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  theme(legend.position = "top", 
+        panel.background = element_rect(colour = "black", fill = NULL))
+map_SST_total
+
+# Map of decadal trend per pixel
+map_SST_trend <- SST_MHW_trends %>%
+  na.omit() %>% 
+  filter(p.value_temp <= 0.05) %>% 
+  mutate(dec_trend_temp_05 = quantile(dec_trend_temp, probs = 0.05),
+         dec_trend_temp_95 = quantile(dec_trend_temp, probs = 0.95),
+         dec_trend_temp = case_when(dec_trend_temp > dec_trend_temp_95 ~ dec_trend_temp_95,
+                                    dec_trend_temp < dec_trend_temp_05 ~ dec_trend_temp_05,
+                                    TRUE ~ dec_trend_temp)) %>% 
+  ggplot() +
+  geom_tile(aes(fill = dec_trend_temp, x = lon, y = lat)) +
+  # geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
+  geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
+  scale_fill_gradient2(low = "blue", mid = "white", high = "red") +
+  labs(x = NULL, y = NULL, 
+       fill = "SST trend (°C/dec.)", colour = "Ecoregion") +
+  coord_sf(expand = F,
+           xlim = c(min(med_regions$lon), max(med_regions$lon)),
+           ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  theme(legend.position = "top", 
+        panel.background = element_rect(colour = "black", fill = NULL))
+map_SST_trend
+
+# Rank tables of ecoregions
+
+# Table theme
+t1 <- ttheme_default(core = list(bg_params = list(fill = c(rep(c("grey90", "grey95"), length.out = 7),
+                                                           rep(c("grey100", "grey95"), length.out = 10),
+                                                           rep(c("grey90", "grey95"), length.out = 12)))))
+
+# Table
+med_table <- MHW_dur_trends_ALL %>% 
+  dplyr::rename(Realm = REALM, Province = PROVINCE, Rank = rank, Trend = dec_trend_mean, SD = dec_trend_sd) %>% 
+  dplyr::select(-grouping) %>% 
+  replace(is.na(.), "") %>% 
+  tableGrob(rows = NULL, theme = t1) %>%
+  gtable_add_grob(grobs = segmentsGrob(
+    x0 = unit(0,"npc"),
+    y0 = unit(0,"npc"),
+    x1 = unit(1,"npc"),
+    y1 = unit(0,"npc"),
+    gp = gpar(lwd = 2.0)),
+    t = 8, b = 8, l = 1, r = 6) %>%
+  gtable_add_grob(grobs = segmentsGrob(
+    x0 = unit(0,"npc"),
+    y0 = unit(0,"npc"),
+    x1 = unit(1,"npc"),
+    y1 = unit(0,"npc"),
+    gp = gpar(lwd = 2.0)),
+    t = 18, b = 18, l = 1, r = 6)
+# plot(med_table)
+
+# Combine SST figures
+fig_MHW_dur_maps <- ggpubr::ggarrange(map_MHW_dur_total, map_MHW_dur_trend, 
+                                      ncol = 1, nrow = 2, align = "hv", 
+                                      labels = c("A)", "B)"))
+fig_MHW_dur_all <- ggpubr::ggarrange(fig_MHW_dur_maps, med_table, ncol = 2, nrow = 1, 
+                                     labels = c(NA, "C)"), widths = c(1, 1))
+ggsave("graph/GLOBAL_MHW_duration.png", fig_MHW_dur_all, height = 11, width = 19)
+
+
+
+# Figure 7 ----------------------------------------------------------------
+
+# NB: This requires code to be run for Figure 6 section
+
+# Map of SST mean per pixel SST 
+map_MHW_dur_total <- MHW_dur_trends %>%
+  na.omit() %>% 
+  mutate(dur_total_05 = quantile(dur_total, probs = 0.05),
+         dur_total_95 = quantile(dur_total, probs = 0.95),
+         dur_total = case_when(dur_total > dur_total_95 ~ dur_total_95,
+                               dur_total < dur_total_05 ~ dur_total_05,
+                               TRUE ~ dur_total)) %>% 
+  ggplot() +
+  geom_tile(aes(fill = dur_total, x = lon, y = lat)) +
+  geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
+  geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
+  scale_fill_viridis_c(option = "A") +
+  # scale_colour_brewer(palette = "Set1") +
+  labs(x = NULL, y = NULL, fill = "MHW days\n(annual average)") +
+  coord_sf(expand = F) +
+  theme(legend.position = "top", 
+        panel.background = element_rect(colour = "black", fill = NULL))
+# map_MHW_dur_total
+
+# Map of decadal trend per pixel
+map_MHW_dur_trend <- MHW_dur_trends %>%
+  na.omit() %>% 
+  filter(p.value <= 0.05) %>% 
+  mutate(dec_trend_05 = quantile(dec_trend, probs = 0.05),
+         dec_trend_95 = quantile(dec_trend, probs = 0.95),
+         dec_trend = case_when(dec_trend > dec_trend_95 ~ dec_trend_95,
+                               dec_trend < dec_trend_05 ~ dec_trend_05,
+                               TRUE ~ dec_trend)) %>% 
+  ggplot() +
+  geom_tile(aes(fill = dec_trend, x = lon, y = lat)) +
+  # geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
+  geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
+  scale_fill_gradient2(low = "yellow4", mid = "white", high = "green4") +
+  # scale_fill_viridis_c(option = "A") +
+  # scale_colour_brewer(palette = "Set1") +
+  labs(x = NULL, y = NULL, 
+       fill = "Annual MHW\ndays (n/decade)", colour = "Ecoregion") +
+  coord_sf(expand = F) +
+  theme(legend.position = "top", 
+        panel.background = element_rect(colour = "black", fill = NULL))
+# map_MHW_dur_trend
+
+# Rank tables of ecoregions
+## NB: This is pretty, but can't be combined with ggplot objects
+med_table <- MHW_dur_trends_ALL %>% 
+  dplyr::rename(Realm = REALM, Province = PROVINCE, Rank = rank, Trend = dec_trend_mean, SD = dec_trend_sd) %>% 
+  gt(groupname_col = "grouping") %>% 
+  tab_header(title = md("Mediterannean Sea ecoregions ranked by increasing MHW days")) %>% 
+  tab_spanner(label = "MHW duration (days/decade)", columns = matches("Trend|SD"))
+# med_table
+
+# Table theme
+t1 <- ttheme_default(core = list(bg_params = list(fill = c(rep(c("grey90", "grey95"), length.out = 7),
+                                                           rep(c("grey100", "grey95"), length.out = 10),
+                                                           rep(c("grey90", "grey95"), length.out = 12)))))
+
+# Table
+med_table <- MHW_dur_trends_ALL %>% 
+  dplyr::rename(Realm = REALM, Province = PROVINCE, Rank = rank, Trend = dec_trend_mean, SD = dec_trend_sd) %>% 
+  dplyr::select(-grouping) %>% 
+  replace(is.na(.), "") %>% 
+  tableGrob(rows = NULL, theme = t1) %>%
+  gtable_add_grob(grobs = segmentsGrob(
+    x0 = unit(0,"npc"),
+    y0 = unit(0,"npc"),
+    x1 = unit(1,"npc"),
+    y1 = unit(0,"npc"),
+    gp = gpar(lwd = 2.0)),
+    t = 8, b = 8, l = 1, r = 6) %>%
+  gtable_add_grob(grobs = segmentsGrob(
+    x0 = unit(0,"npc"),
+    y0 = unit(0,"npc"),
+    x1 = unit(1,"npc"),
+    y1 = unit(0,"npc"),
+    gp = gpar(lwd = 2.0)),
+    t = 18, b = 18, l = 1, r = 6)
+# plot(med_table)
+
+# Combine SST figures
+fig_MHW_dur_maps <- ggpubr::ggarrange(map_MHW_dur_total, map_MHW_dur_trend, 
+                                      ncol = 1, nrow = 2, align = "hv", 
+                                      labels = c("A)", "B)"))
+fig_MHW_dur_all <- ggpubr::ggarrange(fig_MHW_dur_maps, med_table, ncol = 2, nrow = 1, 
+                                     labels = c(NA, "C)"), widths = c(1, 1))
+ggsave("graph/GLOBAL_MHW_duration.png", fig_MHW_dur_all, height = 11, width = 19)
+
 
 # Manuscript figure 1 -----------------------------------------------------
 
 ## A: Map of temperature difference mean 1982-1986 vs 2015-2019
-# TODO: Add ecoregions to all maps
+# TODO:
+# Send final PDF to Dani for post processing
+
 # Load data
 load("data/MHW_clim_pixel_annual.RData")
+
+# Custom legend
+MHW_colours_compare <- c(
+  "Same" = "salmon",
+  MHW_colours[2],
+  MHW_colours[3],
+  MHW_colours[4]
+)
+
+# Manual label placements
+# MEOW$ECOREGION
+ecoregion_labels <- data.frame(lon = c(17.4, 33.6, 12.1, 20.8, 25.7, -2.26, 3.5, 4.1),
+                               lat = c(44.7, 37.9, 31.5, 39.9, 42.1, 33.7, 44.5, 34.7),
+                               Ecoregion = c("Adriatic\nSea", "Levantine\nSea", "Tunisian Plateau", "Ionian\nSea",
+                                             "Aegean\nSea", "Alboran Sea", "NW Mediterranean", "SW Mediterranean"))
+
 # Prep data
 pixel_pentad <- MHW_clim_pixel_annual %>% 
   right_join(med_regions, by = c("lon", "lat")) %>% 
@@ -521,30 +739,34 @@ pixel_pentad <- MHW_clim_pixel_annual %>%
   summarise(temp = mean(temp, na.rm = T), .groups = "drop") %>% 
   pivot_wider(id_cols = c("lon", "lat"), names_from = "pentad", values_from = "temp") %>% 
   mutate(temp_diff = `(2014,2019]` - `(1981,1986]`)
+
 # Plot data
-panel_A <- ggplot(pixel_pentad, aes(x = lon, y = lat)) +
-  geom_tile(aes(fill = temp_diff), colour = NA) +
+panel_A <- ggplot(pixel_pentad) +
+  geom_tile(aes(fill = temp_diff, x = lon, y = lat), colour = NA) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
-  # scale_fill_manual("Category", values = MHW_colours) +
+  geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
+  geom_point(data = insitu_sites, aes(x = lon, y = lat), size = 3, shape = 21, fill = "white") +
+  geom_label(data = ecoregion_labels, aes(x = lon, y = lat, label = Ecoregion), alpha = 0.8) +
   scale_fill_gradient2(low = "yellow", mid = "orange", high = "red",
-                       breaks = c(0.9, 1.2, 1.5), midpoint = 1.1) +#,
-                       # labels = c("0", "0.5", "1.0", "1.5", "2.0")) +
-                       # labels = c("0", "0.5", "1.0", "1.5", "2.0")) +
-  coord_cartesian(expand = F, 
-                  xlim = c(min(med_regions$lon), max(med_regions$lon)),
-                  ylim = c(min(med_regions$lat), max(med_regions$lat))) +
-  # theme_void() +
-  labs(title = "__(a)__   Temperature difference [2015 to 2019] minus [1982 to 1986]",
-       y = "Latitude (°N)", x = "Longitude (°E)", fill = "Temp. (°C)") +
-  # guides(fill = guide_legend(override.aes = list(size = 10))) +
-  theme(plot.title = ggtext::element_markdown(),
-        panel.border = element_rect(colour = "black", fill = NA),
-        # legend.position = "bottom",
-        legend.position = c(0.9, 0.79),
+                       breaks = c(0.7, 1.2, 1.7), midpoint = 1.1) +
+  coord_sf(expand = F,
+           xlim = c(min(med_regions$lon), max(med_regions$lon)),
+           ylim = c(min(med_regions$lat), max(med_regions$lat))) +
+  scale_x_continuous(breaks = c(0, 10, 20, 30)) +
+  scale_y_continuous(breaks = c(32, 36, 40, 44)) +
+  labs(y = "Latitude", x = "Longitude", 
+       # title = "Temperature difference [2015 to 2019] minus [1982 to 1986]",
+       fill = "\U0394 Temp. (°C)") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        panel.background = element_rect(fill = "white"),
+        legend.position = c(0.91, 0.8),
+        legend.background = element_rect(colour = "black"),
+        legend.margin = margin(t = 5, r = 20, b = 5, l = 5),
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
-        panel.background = element_rect(fill = "grey90"))
-# panel_A
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14))
+panel_A
 
 ## B: Barplots of mean Med SST anom with ~5 year average segments
 # Prep data
@@ -560,6 +782,7 @@ med_pentad <- med_annual %>%
   separate(pentad, into = c("start_year", "end_year"), sep = ",", remove = F) %>% 
   mutate(start_year = as.numeric(sub("[(]", "", start_year)) + 1,
          end_year = as.numeric(sub("]", "", end_year)))
+
 # Plot data
 panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
   geom_bar(aes(fill = anom), stat = "identity", width = 1, show.legend = F) +
@@ -569,25 +792,21 @@ panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
                    y = anom_pentad, yend = anom_pentad)) +
   scale_fill_gradient2(low = "#4575b4", high = "#d73027") +
   scale_x_continuous(breaks = seq(1984, 2019, 7), expand = c(0, 0)) +
-  labs(title = "__(b)__   Annual SST anomalies [1982 to 2019]",
-       y = "Temperature (°C)", x = "Year") +
-  theme(plot.title = ggtext::element_markdown(),
-        panel.border = element_rect(colour = "black", fill = NA),
-        # legend.position = "bottom",
+  labs(y = "Temperature (°C)", 
+       # title = "Annual SST anomalies [1982 to 2019]",
+       x = "Year") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        # panel.background = element_rect(fill = "white"),
+        # legend.position = c(0.91, 0.83),
+        legend.background = element_rect(colour = "black"),
+        legend.margin = margin(t = 5, r = 15, b = 5, l = 5),
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
-        panel.background = element_rect(fill = "grey90"))
-# panel_B
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14))
+panel_B
 
 ## C: Map of difference in cat 2+ days between first and last pentad
-# Custom legend
-MHW_colours_compare <- c(
-  "Same" = "salmon",
-  MHW_colours[2],
-  MHW_colours[3],
-  MHW_colours[4]
-)
-
 # Prep data
 pixel_cat_pentad <- MHW_cat_pixel_annual %>% 
   right_join(med_regions, by = c("lon", "lat")) %>%
@@ -614,41 +833,35 @@ pixel_cat_pentad <- MHW_cat_pixel_annual %>%
 # Plot data
 panel_C <- pixel_cat_pentad %>%
   na.omit() %>%
-  # group_by(lon, lat) %>%
-  # summarise(category = max(as.numeric(category), na.rm = T), .groups = "drop") %>%
-  # mutate(cat_max_diff_cat = factor(cat_max_diff_cat, labels = c("I Moderate", "II Strong", "III Severe", "IV Extreme"))) %>%
   ggplot() +
-  # geom_tile(data = OISST_ice_coords, fill = "powderblue", colour = NA, alpha = 0.5) +
   geom_tile(data = filter(pixel_cat_pentad, cat_max_diff_cat == "Same"), 
-            aes(x = lon, y = lat, fill = cat_max_diff_cat), alpha = 0.3) + # This background fill colour needs tweaking
+            aes(x = lon, y = lat, fill = cat_max_diff_cat), alpha = 0.3) +
   geom_tile(data = filter(pixel_cat_pentad, cat_max_diff_cat != "Same"),
             aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
-  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group),
-               fill = "grey70", colour = "black") +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
-  # scale_fill_manual(values = c("red", "white", "blue")) +
+  geom_point(data = insitu_sites, aes(x = lon, y = lat), size = 3, shape = 21, fill = "white") +
+  geom_label(data = ecoregion_labels, aes(x = lon, y = lat, label = Ecoregion), alpha = 0.8) +
   scale_fill_manual("Category", values = MHW_colours_compare,
                     breaks = c("Same", "II Strong", "III Severe", "IV Extreme")) +
-  # scale_fill_gradient2(low = "darkorchid", mid = "white", high = "hotpink", midpoint = 0) +#,
-                       # breaks = c(0.9, 1.2, 1.5), midpoint = 1.1) +
-  # scale_y_continuous(breaks = NULL) +
-  # scale_x_continuous(breaks = NULL) +
   coord_sf(expand = F,
            xlim = c(min(med_regions$lon), max(med_regions$lon)),
            ylim = c(min(med_regions$lat), max(med_regions$lat))) +
-  # theme_void() +
-  # theme_bw() +
-  labs(title = "__(c)__   The highest category for [2015 to 2019] when [1982 to 1986] was 'I Moderate' or less",
-       y = "Latitude (°N)", x = "Longitude (°E)", fill = "Max category") +
-  # guides(fill = guide_legend(override.aes = list(size = 10))) +
+  scale_x_continuous(breaks = c(0, 10, 20, 30)) +
+  scale_y_continuous(breaks = c(32, 36, 40, 44)) +
+  labs(y = "Latitude", x = "Longitude", 
+       # title = "The highest category for [2015 to 2019] when [1982 to 1986] was 'I Moderate' or less",
+       fill = "Max category") +
   theme(panel.border = element_rect(colour = "black", fill = NA),
-        plot.title = ggtext::element_markdown(),
-        legend.position = c(0.89, 0.78),
-        # legend.position = "bottom",
+        panel.background = element_rect(fill = "white"),
+        legend.position = c(0.91, 0.83),
+        legend.background = element_rect(colour = "black"),
+        legend.margin = margin(t = 5, r = 15, b = 5, l = 5),
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
-        panel.background = element_rect(fill = "grey90"))
-# panel_C
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14))
+panel_C
 
 ## D: Barplot of Med surface area affected by Cat 2+ MHWs 
 # Shortened colour palette
@@ -686,7 +899,7 @@ cat_pentad <- cat_daily_mean %>%
          end_year = as.numeric(sub("]", "", end_year)))
 # Plot data
 panel_D <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
-  geom_bar(aes(fill = category), stat = "identity", show.legend = T,
+  geom_bar(aes(fill = category), stat = "identity", show.legend = F,
            position = position_stack(reverse = TRUE), width = 1) +
   geom_segment(data = cat_pentad, size = 2, lineend = "round",
                aes(x = start_year, xend = end_year, 
@@ -701,23 +914,22 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
                      breaks = c(0.25, 0.5, 0.75),
                      labels = c("25", "50", "75")) +
   scale_x_continuous(breaks = seq(1984, 2019, 7)) +
-  guides(pattern_colour = FALSE, colour = FALSE) +
-  # labs(title = "__(d)__   Surface area affected by category 'II Strong'+ MHWs",
-  labs(title = "Surface area affected by category 'II Strong'+ MHWs",
-       y = "Cover (%)", x = "Year") +
+  labs(y = "Cover (%)",
+       # title = "Surface area affected by category 'II Strong'+ MHWs",
+       x = "Year") +
   coord_cartesian(expand = F) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
-        # plot.title = ggtext::element_markdown(),
-        legend.position = c(0.1, 0.85),
-        axis.title = element_text(size = 12),
-        axis.text = element_text(size = 10),
-        legend.title = element_text(size = 14),
-        legend.text = element_text(size = 12))
-# panel_D
+        legend.margin = margin(t = 5, r = 15, b = 5, l = 5),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14))
+panel_D
 
 ## Combine and save
 manu_fig_1 <- ggpubr::ggarrange(panel_A, panel_B, panel_C, panel_D, labels = c("(a)", "(b)", "(c)", "(d)"))
-ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 16)
+ggsave("figures/manu_fig_1.png", manu_fig_1, height = 10, width = 20.3)
+ggsave("figures/manu_fig_1.pdf", manu_fig_1, height = 10, width = 20.3)
 
 # Summary stats for text
 cat_daily_mean %>% 
@@ -736,10 +948,6 @@ med_pentad$anom_pentad[7]-med_pentad$anom_pentad[1]
 # Show taxa as the colour of dots
 # Use all data points. No averaging per pixel.
 # Create multiple panels: One with no averaging, and others with layers of averaging
-
-# TODO: Look into what relationship may exist between the vertical movement of the dots per year
-# E.g. the range of MHW days in a year is not large, but MME damage is
-# What is it that drives the dots up within a narrow x-axis range? Species? Location?
 
 # Load MME MHW pairing data
 site_MME_MHW_summary <- read_csv("data/site_MME_MHW_summary.csv")
@@ -835,16 +1043,18 @@ species_scatter_full <- function(df, round_type, x_var){
   ggplot(data = df_long, aes(x = value, y = `Damaged percentage`)) +
     # geom_smooth(data = df_15, linetype = "dashed", colour = "black", method = "lm", se = F) +
     geom_smooth(colour = "black", method = "lm", se = F) +
-    geom_point(aes(colour = Taxa)) +
-    # geom_point() + # Simple black dots
-    # geom_label(data = df_label, aes(y = 10, x = x_point, label = paste0("n = ",count)), alpha = 0.6) +
+    # geom_point(size = 3.5) +
+    geom_point(aes(fill = Taxa), shape = 21, size = 4, alpha = 0.9) +
     geom_label(data = df_label, alpha = 0.6, 
                aes(y = 90, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
-    guides(colour = guide_legend(override.aes = list(shape = 15, size = 5))) +
-    # scale_colour_brewer(palette = "Set1") +
-    labs(y = "MME damage (%)", colour = "Taxa", x = x_lab,
+    guides(colour = guide_legend(override.aes = list(shape = 22, size = 6))) +
+    scale_colour_brewer(palette = "Set1", aesthetics = c("colour", "fill")) +
+    scale_x_continuous(expand = c(0, 0)) +
+    labs(y = "MME damage (%)", 
+         colour = "Taxa", 
          # subtitle = plot_sub,
-         title = plot_title) +
+         # title = plot_title,
+         x = x_lab) +
     # facet_wrap(~Ecoregion, scales = "free_x") +#, strip.position = "bottom") +
     scale_y_continuous(limits = c(-2, max(df_round$`Damaged percentage`, na.rm = T)+2)) +
     # scale_x_continuous(limits = c(-2, max(df$duration, na.rm = T)*1.1)) +
@@ -870,4 +1080,124 @@ panel_pixel_icum <- species_scatter_full(mme_final, "pixel", "icum")
 # ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 25)
 manu_fig_4 <- panel_species_days
 ggsave("figures/manu_fig_4.png", manu_fig_4, height = 5, width = 6)
+ggsave("figures/manu_fig_4.pdf", manu_fig_4, height = 5, width = 6)
+
+
+# Manuscript figure 5 -----------------------------------------------------
+
+# Use only the species from AX column: YES
+# Only take records that showed mortality
+mme_selected_2_mort <- filter(mme, selected_2 == "YES") %>%
+  mutate(mme_damage = case_when(`Damaged qualitative` == "No" ~ 0, TRUE ~ 1)) %>% 
+  group_by(Ecoregion, year) %>% 
+  mutate(mme_record = n(),
+         mme_prop = sum(mme_damage)/mme_record) %>% 
+  dplyr::select(Ecoregion, year, mme_prop, mme_record) %>% 
+  distinct()
+
+# MHW stats for JJASON period
+load("data/MHW_cat_region.RData")
+MHW_cat_region_JJASON <- MHW_cat_region %>%
+  filter(year >= 2015, month %in% c("juin", "juil", "août", "sept", "oct", "nov")) %>%
+  mutate(duration = duration/pixels) %>%
+  group_by(region, year) %>%
+  summarise(duration = sum(duration), .groups = "drop")
+
+# Create region averages by all pixels
+mme_region <- mme_selected_2_mort %>% 
+  group_by(year, Ecoregion) %>%
+  mutate(mme_prop = (mme_prop*100)+20) %>%
+  filter(Ecoregion == "Northwestern Mediterranean")
+mme_mhw_region <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
+
+# Create plot
+manu_fig_5_a <- ggplot(mme_mhw_region, aes(x = year, y = duration)) +
+  geom_bar(aes(fill = as.factor(year)), colour = "black", stat = "identity", 
+           show.legend = F, width = 0.8) +
+  geom_point(aes(y = mme_prop), size = 5) +
+  scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
+  scale_y_continuous(limits = c(0, 110), breaks = c(20, 40, 60, 80, 100), expand = c(0, 0),
+                     sec.axis = sec_axis(name = "MME records\n(proportion with mortality)", 
+                                         trans = ~ . + 0,
+                                         breaks = c(20, 45, 70, 95),
+                                         labels = c("0.00", "0.25", "0.50", "0.75"))) +
+  labs(x = NULL,
+       # title = "Average MHW days per year in NW Med",
+       # subtitle = "Points show proportion of records with mortality",
+       y = "MHW days",) +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        # panel.background = element_rect(fill = "white"),
+        # panel.grid = element_line(colour = "black"),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14))
+manu_fig_5_a
+
+# Analysis of mortality per pixel per ecoregion
+# Get MHW days and relate them to percentage of observations that have mortality
+load("data/MHW_cat_pixel_annual_JJASON.RData")
+
+## Use filter 3B for these analyses
+mme_3B <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>%
+  filter(Ecoregion == "Northwestern Mediterranean") %>%
+  mutate(mme_damage = case_when(`Damaged qualitative` %in% c("No") ~ 0, TRUE ~ 1)) %>% 
+  group_by(Ecoregion, `Area Monitored`, lon, lat, year) %>%
+  mutate(mme_record = n(),
+         mme_prop = sum(mme_damage)/mme_record,
+         damage_mean = mean(`Damaged percentage`, na.rm = T)) %>% 
+  ungroup() %>% 
+  dplyr::select(Ecoregion, `Area Monitored`, lon, lat, year, mme_prop, mme_record, damage_mean) %>%
+  distinct()
+
+# Match nearest pixels
+mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
+                                  MHW_pixels[c("lon", "lat")]) %>% 
+  dplyr::rename(lon = lon.x, lat = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
+  distinct()
+mme_mhw_3B <- mme_3B %>% 
+  left_join(mme_mhw_pixel_match, by = c("lon", "lat")) %>% 
+  left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
+  mutate(duration_sum = replace_na(duration_sum, 0)) %>% 
+  group_by(Ecoregion, `Area Monitored`, year) %>%
+  summarise(duration_sum = mean(duration_sum, na.rm = T),
+            mme_prop = mean(mme_prop, na.rm = T),
+            damage_mean = mean(damage_mean, na.rm = T), .groups = "drop")
+
+# Perform analysis against all MME above the lowest category etc.
+# Create a scatterplot figure showing these results, similar to ManuFig4
+mme_mhw_3B_label_all <- mme_mhw_3B %>%
+  summarise(count = n(),
+            r_val = round(cor.test(mme_prop, duration_sum)$estimate, 2),
+            p_val = round(cor.test(mme_prop, duration_sum)$p.value, 2),
+            x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
+  mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
+                           TRUE ~ paste0("p = ",p_val)))
+manu_fig_5_b <- mme_mhw_3B %>% 
+  # filter(`Damaged qualitative` != "No") %>% 
+  ggplot(aes(x = duration_sum, y = mme_prop)) +
+  geom_smooth(method = "lm", se = F, colour = "black") +
+  geom_point(aes(fill = as.factor(year)), shape = 21, size = 5, alpha = 0.9, show.legend = F) +
+  geom_label(data = mme_mhw_3B_label_all, alpha = 0.6, 
+             aes(y = 0.6, x = x_point, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
+  scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
+  scale_y_continuous(limits = c(-0.1, 1.1), breaks = c(0, 0.25, 0.50, 0.75, 1), 
+                     labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
+  coord_cartesian(expand = F) +
+  labs(y = "MME records\n(proportion with mortality)",
+       # title = "MHW days and MME records per monitoring area in the NW Med",
+       # subtitle = "MHW days per year during JJASON period and proportion of MME records with damage",
+       x = "MHW days (per year; JJASON)") +
+  theme(panel.border = element_rect(colour = "black", fill = NA),
+        # panel.background = element_rect(fill = "white"),
+        # panel.grid = element_line(colour = "black"),
+        legend.text = element_text(size = 14),
+        legend.title = element_text(size = 16),
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 14))
+manu_fig_5_b
+
+manu_fig_5 <- ggpubr::ggarrange(manu_fig_5_a, manu_fig_5_b, labels = c("(a)", "(b)"), ncol = 1, align = "hv")
+ggsave("figures/manu_fig_5.png", manu_fig_5, height = 10, width = 8)
+ggsave("figures/manu_fig_5.pdf", manu_fig_5, height = 10, width = 8)
 
