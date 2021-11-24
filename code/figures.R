@@ -943,7 +943,7 @@ med_pentad$anom_pentad[7]-med_pentad$anom_pentad[1]
 # Use only the species from AX column: YES
 # Only take records that showed mortality
 mme_selected_2_mort <- filter(mme, selected_2 == "YES") %>%
-# mme_3B_mort <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>%
+# mme_3B_mort <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% # NB: This works much worse
   mutate(mme_damage = case_when(`Damaged qualitative` == "No" ~ 0, TRUE ~ 1)) %>% 
   group_by(Ecoregion, year) %>% 
   mutate(mme_record = n(),
@@ -961,36 +961,39 @@ MHW_cat_region_JJASON <- MHW_cat_region %>%
 
 # Create region averages by all pixels
 mme_region <- mme_selected_2_mort %>%
-# mme_region <- mme_3B_mort %>% 
+# mme_region <- mme_3B_mort %>% # This is much morse
   group_by(year, Ecoregion) %>%
   mutate(mme_prop = (mme_prop*100)+20) %>%
   filter(Ecoregion == "Northwestern Mediterranean")
-manu_fig_5_a_data <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
-write_csv(mme_mhw_region, "data/manu_fig_5_a_data.csv")
+manu_fig_4_a_data <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
+write_csv(manu_fig_4_a_data, "data/manu_fig_4_a_data.csv")
 
 # Create plot
-manu_fig_5_a <- ggplot(manu_fig_5_a_data, aes(x = year, y = duration)) +
+manu_fig_4_a <- ggplot(manu_fig_5_a_data, aes(x = year, y = duration)) +
   geom_bar(aes(fill = as.factor(year)), colour = "black", stat = "identity", 
            show.legend = F, width = 0.8) +
   geom_point(aes(y = mme_prop), size = 5) +
   scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
   scale_y_continuous(limits = c(0, 110), breaks = c(20, 40, 60, 80, 100), expand = c(0, 0),
-                     sec.axis = sec_axis(name = "MME records\n(proportion with mortality)", 
+                     sec.axis = sec_axis(name = "Overall proportion of records\nwith mass mortality", 
                                          trans = ~ . + 0,
                                          breaks = c(20, 45, 70, 95),
                                          labels = c("0.00", "0.25", "0.50", "0.75"))) +
   labs(x = NULL,
+       title = "N.W. Mediterranean",
        # title = "Average MHW days per year in NW Med",
        # subtitle = "Points show proportion of records with mortality",
-       y = "MHW days",) +
+       y = "MHW days (bars)",) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         panel.background = element_rect(fill = "white"),
+        plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
         # panel.grid = element_line(colour = "black"),
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
-        axis.text = element_text(size = 12),
+        axis.text = element_text(size = 12, colour = "black"),
+        axis.text.x = element_text(face = "bold", size = 14),
         axis.title = element_text(size = 14))
-manu_fig_5_a
+manu_fig_4_a
 
 # Analysis of mortality per pixel per ecoregion
 # Get MHW days and relate them to percentage of observations that have mortality
@@ -1013,7 +1016,7 @@ mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
                                   MHW_pixels[c("lon", "lat")]) %>% 
   dplyr::rename(lon = lon.x, lat = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
   distinct()
-manu_fig_5_b_data <- mme_3B %>% 
+manu_fig_4_b_data <- mme_3B %>% 
   left_join(mme_mhw_pixel_match, by = c("lon", "lat")) %>% 
   left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
   mutate(duration_sum = replace_na(duration_sum, 0)) %>% 
@@ -1021,44 +1024,49 @@ manu_fig_5_b_data <- mme_3B %>%
   summarise(duration_sum = mean(duration_sum, na.rm = T),
             mme_prop = mean(mme_prop, na.rm = T),
             damage_mean = mean(damage_mean, na.rm = T), .groups = "drop")
-write_csv(manu_fig_5_b_data, "data/manu_fig_5_b_data.csv")
+write_csv(manu_fig_4_b_data, "data/manu_fig_4_b_data.csv")
 
 # Perform analysis against all MME above the lowest category etc.
-# Create a scatterplot figure showing these results, similar to ManuFig4
-manu_fig_5_b_label <- manu_fig_5_b_data %>%
+manu_fig_4_b_label <- manu_fig_4_b_data %>%
   summarise(count = n(),
             r_val = round(cor.test(mme_prop, duration_sum)$estimate, 2),
             p_val = round(cor.test(mme_prop, duration_sum)$p.value, 2),
             x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
   mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
                            TRUE ~ paste0("p = ",p_val)))
-manu_fig_5_b <- manu_fig_5_b_data %>% 
+manu_fig_4_b <- manu_fig_4_b_data %>% 
   # filter(`Damaged qualitative` != "No") %>% 
   ggplot(aes(x = duration_sum, y = mme_prop)) +
-  geom_smooth(method = "lm", se = F, colour = "black") +
-  geom_point(shape = 21, size = 5, alpha = 0.9, 
+  geom_smooth(method = "lm", se = F, colour = "blue") +
+  geom_point(shape = 21, size = 5, alpha = 0.9,
              # aes(fill = as.factor(year)),
              show.legend = F) +
-  geom_label(data = manu_fig_5_b_label, alpha = 0.9, 
+  # Trick to get a black border around a blue text label
+  geom_label(data = manu_fig_4_b_label, alpha = 0.9, colour = "black",
+             aes(y = 0.2, x = 70, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
+  # The coloured text label
+  geom_label(data = manu_fig_5_b_label, alpha = 0.9, colour = "blue", label.size = 0, label.padding = unit(0, "mm"),
              aes(y = 0.2, x = 70, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
   scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
   scale_y_continuous(limits = c(-0.1, 1.1), breaks = c(0, 0.25, 0.50, 0.75, 1), 
                      labels = c("0", "0.25", "0.5", "0.75", "1.0")) +
   coord_cartesian(expand = F) +
-  labs(y = "MME records\n(proportion with mortality)",
+  labs(y = "Proportion of records with MME\nwithin each monitored area",
+       title = "Within monitored areas",
        # title = "MHW days and MME records per monitoring area in the NW Med",
        # subtitle = "MHW days per year during JJASON period and proportion of MME records with damage",
-       x = "MHW days (per year; JJASON)") +
+       x = "MHW days (per year and monitored area)") +
   theme(panel.border = element_rect(colour = "black", fill = NA),
         panel.background = element_rect(fill = "white"),
+        plot.title = element_text(size = 18, hjust = 0.5, face = "bold"),
         # panel.grid = element_line(colour = "black"),
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
-        axis.text = element_text(size = 12),
+        axis.text = element_text(size = 12, colour = "black"),
         axis.title = element_text(size = 14))
-manu_fig_5_b
+manu_fig_4_b
 
-manu_fig_5 <- ggpubr::ggarrange(manu_fig_5_a, manu_fig_5_b, labels = c("(a)", "(b)"), ncol = 1, align = "hv")
-ggsave("figures/manu_fig_5.png", manu_fig_5, height = 10, width = 8)
-ggsave("figures/manu_fig_5.pdf", manu_fig_5, height = 10, width = 8)
+manu_fig_4 <- ggpubr::ggarrange(manu_fig_4_a, manu_fig_4_b, labels = c("(a)", "(b)"), ncol = 1, align = "hv")
+ggsave("figures/manu_fig_4.png", manu_fig_4, height = 10, width = 8)
+ggsave("figures/manu_fig_4.pdf", manu_fig_4, height = 10, width = 8)
 
