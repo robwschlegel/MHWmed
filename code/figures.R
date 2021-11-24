@@ -509,7 +509,7 @@ MHW_clim_pixel_annual_ecoregion <- MHW_clim_pixel_annual %>%
 registerDoParallel(cores = 12)
 system.time(
   SST_MHW_trends <- plyr::ddply(MHW_clim_pixel_annual_ecoregion, c("Ecoregion", "lon", "lat"), dec_trend_calc, .parallel = T)
-) # xxx minutes on 50 cores
+) # xxx minutes on 12 cores
 gc()
 save(SST_MHW_trends, file = "data/SST_MHW_trends.RData")
 load("data/SST_MHW_trends.RData")
