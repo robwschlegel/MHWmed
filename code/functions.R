@@ -20,6 +20,9 @@ options(scipen = 999)
 # The file location
 res_files <- dir("data/MHW", full.names = T)
 
+# The 7 in situ sites
+insitu_sites <- read_delim("metadata/7sites_ID_lon_lat.csv", delim = ";")
+
 # The coords with SST
 load("metadata/med_sea_coords.RData")
 lat_idx <- unique(med_sea_coords$lat)
