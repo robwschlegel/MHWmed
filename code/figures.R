@@ -6,6 +6,9 @@
 
 # The project-wide functions
 source("code/functions.R")
+library(grid)
+library(gridExtra)
+library(gtable)
 
 
 # Figure 1 ----------------------------------------------------------------
@@ -503,12 +506,12 @@ MHW_clim_pixel_annual_ecoregion <- MHW_clim_pixel_annual %>%
   filter(!is.na(Ecoregion))
 
 # Load lon files
-registerDoParallel(cores = 12)
-system.time(
-  SST_MHW_trends <- plyr::ddply(MHW_clim_pixel_annual_ecoregion, c("Ecoregion", "lon", "lat"), dec_trend_calc, .parallel = T)
-) # xxx minutes on 12 cores
-gc()
-save(SST_MHW_trends, file = "data/SST_MHW_trends.RData")
+# registerDoParallel(cores = 12)
+# system.time(
+#   SST_MHW_trends <- plyr::ddply(MHW_clim_pixel_annual_ecoregion, c("Ecoregion", "lon", "lat"), dec_trend_calc, .parallel = T)
+# ) # xxx minutes on 12 cores
+# gc()
+# save(SST_MHW_trends, file = "data/SST_MHW_trends.RData")
 load("data/SST_MHW_trends.RData")
 
 ## Per ecoregion stats
@@ -532,17 +535,18 @@ med_trends <- bind_rows(SST_MHW_trends_ecoregion, SST_MHW_trends_province) %>%
 # Map of SST mean per pixel
 map_SST_total <- SST_MHW_trends %>%
   na.omit() %>% 
-  mutate(temp_average_05 = quantile(temp_average, probs = 0.05),
-         temp_average_95 = quantile(temp_average, probs = 0.95),
-         temp_average = case_when(temp_average > temp_average_95 ~ temp_average_95,
-                                  temp_average < temp_average_05 ~ temp_average_05,
-                                  TRUE ~ temp_average)) %>% 
+  # Rather not remove the tails of the SST distribution
+  # mutate(temp_average_05 = quantile(temp_average, probs = 0.05),
+  #        temp_average_95 = quantile(temp_average, probs = 0.95),
+  #        temp_average = case_when(temp_average > temp_average_95 ~ temp_average_95,
+  #                                 temp_average < temp_average_05 ~ temp_average_05,
+  #                                 TRUE ~ temp_average)) %>% 
   ggplot() +
   geom_tile(aes(fill = temp_average, x = lon, y = lat)) +
   geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
   geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
-  scale_fill_viridis_c(option = "A") +
-  labs(x = NULL, y = NULL, fill = "SST (°C)\n(annual average)") +
+  scale_fill_viridis_c() +
+  labs(x = NULL, y = NULL, fill = "Annual average\ntemperature (°C)") +
   coord_sf(expand = F,
            xlim = c(min(med_regions$lon), max(med_regions$lon)),
            ylim = c(min(med_regions$lat), max(med_regions$lat))) +
@@ -554,18 +558,19 @@ map_SST_total
 map_SST_trend <- SST_MHW_trends %>%
   na.omit() %>% 
   filter(p.value_temp <= 0.05) %>% 
-  mutate(dec_trend_temp_05 = quantile(dec_trend_temp, probs = 0.05),
-         dec_trend_temp_95 = quantile(dec_trend_temp, probs = 0.95),
-         dec_trend_temp = case_when(dec_trend_temp > dec_trend_temp_95 ~ dec_trend_temp_95,
-                                    dec_trend_temp < dec_trend_temp_05 ~ dec_trend_temp_05,
-                                    TRUE ~ dec_trend_temp)) %>% 
+  # Rather not remove the tails
+  # mutate(dec_trend_temp_05 = quantile(dec_trend_temp, probs = 0.05),
+  #        dec_trend_temp_95 = quantile(dec_trend_temp, probs = 0.95),
+  #        dec_trend_temp = case_when(dec_trend_temp > dec_trend_temp_95 ~ dec_trend_temp_95,
+  #                                   dec_trend_temp < dec_trend_temp_05 ~ dec_trend_temp_05,
+  #                                   TRUE ~ dec_trend_temp)) %>% 
   ggplot() +
   geom_tile(aes(fill = dec_trend_temp, x = lon, y = lat)) +
   # geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
   geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
   scale_fill_gradient2(low = "blue", mid = "white", high = "red") +
   labs(x = NULL, y = NULL, 
-       fill = "SST trend (°C/dec.)", colour = "Ecoregion") +
+       fill = "SST trend\n(°C/dec.)", colour = "Ecoregion") +
   coord_sf(expand = F,
            xlim = c(min(med_regions$lon), max(med_regions$lon)),
            ylim = c(min(med_regions$lat), max(med_regions$lat))) +
@@ -576,15 +581,13 @@ map_SST_trend
 # Rank tables of ecoregions
 
 # Table theme
-t1 <- ttheme_default(core = list(bg_params = list(fill = c(rep(c("grey90", "grey95"), length.out = 7),
-                                                           rep(c("grey100", "grey95"), length.out = 10),
-                                                           rep(c("grey90", "grey95"), length.out = 12)))))
+t1 <- ttheme_default(core = list(bg_params = list(fill = c(rep(c("grey90", "grey95"), length.out = 8),
+                                                           rep(c("grey100"), length.out = 1)))))
 
 # Table
-med_table <- MHW_dur_trends_ALL %>% 
-  dplyr::rename(Realm = REALM, Province = PROVINCE, Rank = rank, Trend = dec_trend_mean, SD = dec_trend_sd) %>% 
-  dplyr::select(-grouping) %>% 
-  replace(is.na(.), "") %>% 
+med_SST_table <- med_trends %>% 
+  dplyr::rename(Province = PROVINCE, Rank = rank, Trend = dec_trend_temp_mean, SD = dec_trend_temp_sd) %>% 
+  select(Rank, Province, Ecoregion, Trend, SD) %>% 
   tableGrob(rows = NULL, theme = t1) %>%
   gtable_add_grob(grobs = segmentsGrob(
     x0 = unit(0,"npc"),
@@ -592,61 +595,56 @@ med_table <- MHW_dur_trends_ALL %>%
     x1 = unit(1,"npc"),
     y1 = unit(0,"npc"),
     gp = gpar(lwd = 2.0)),
-    t = 8, b = 8, l = 1, r = 6) %>%
-  gtable_add_grob(grobs = segmentsGrob(
-    x0 = unit(0,"npc"),
-    y0 = unit(0,"npc"),
-    x1 = unit(1,"npc"),
-    y1 = unit(0,"npc"),
-    gp = gpar(lwd = 2.0)),
-    t = 18, b = 18, l = 1, r = 6)
-# plot(med_table)
+    t = 9, b = 9, l = 1, r = 5)
+# plot(med_SST_table)
 
 # Combine SST figures
-fig_MHW_dur_maps <- ggpubr::ggarrange(map_MHW_dur_total, map_MHW_dur_trend, 
-                                      ncol = 1, nrow = 2, align = "hv", 
-                                      labels = c("A)", "B)"))
-fig_MHW_dur_all <- ggpubr::ggarrange(fig_MHW_dur_maps, med_table, ncol = 2, nrow = 1, 
-                                     labels = c(NA, "C)"), widths = c(1, 1))
-ggsave("graph/GLOBAL_MHW_duration.png", fig_MHW_dur_all, height = 11, width = 19)
+fig_SST_maps <- ggpubr::ggarrange(map_SST_total, map_SST_trend, 
+                                  ncol = 1, nrow = 2, align = "hv", 
+                                  labels = c("A)", "B)"))
+fig_SST_all <- ggpubr::ggarrange(fig_SST_maps, med_SST_table, ncol = 2, nrow = 1, 
+                                 labels = c(NA, "C)"), widths = c(1, 0.7))
+ggsave("figures/Med_SST.png", fig_SST_all, height = 11, width = 16.5)
 
 
+# Figure 7 ---------------------------------------------------------------
 
-# Figure 7 ----------------------------------------------------------------
-
-# NB: This requires code to be run for Figure 6 section
+# NB: This requires all the code to be run for Figure 6 section
 
 # Map of SST mean per pixel SST 
-map_MHW_dur_total <- MHW_dur_trends %>%
+map_MHW_dur_total <- SST_MHW_trends %>%
   na.omit() %>% 
-  mutate(dur_total_05 = quantile(dur_total, probs = 0.05),
-         dur_total_95 = quantile(dur_total, probs = 0.95),
-         dur_total = case_when(dur_total > dur_total_95 ~ dur_total_95,
-                               dur_total < dur_total_05 ~ dur_total_05,
-                               TRUE ~ dur_total)) %>% 
+  # Rather not remove the tails
+  # mutate(dur_average_05 = quantile(dur_average, probs = 0.05),
+  #        dur_average_95 = quantile(dur_average, probs = 0.95),
+  #        dur_average = case_when(dur_average > dur_average_95 ~ dur_average_95,
+  #                                dur_average < dur_average_05 ~ dur_average_05,
+  #                                TRUE ~ dur_average)) %>% 
   ggplot() +
-  geom_tile(aes(fill = dur_total, x = lon, y = lat)) +
+  geom_tile(aes(fill = dur_average, x = lon, y = lat)) +
   geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
   geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
   scale_fill_viridis_c(option = "A") +
   # scale_colour_brewer(palette = "Set1") +
   labs(x = NULL, y = NULL, fill = "MHW days\n(annual average)") +
-  coord_sf(expand = F) +
+  coord_sf(expand = F,
+           xlim = c(min(med_regions$lon), max(med_regions$lon)),
+           ylim = c(min(med_regions$lat), max(med_regions$lat))) +
   theme(legend.position = "top", 
         panel.background = element_rect(colour = "black", fill = NULL))
-# map_MHW_dur_total
+map_MHW_dur_total
 
 # Map of decadal trend per pixel
-map_MHW_dur_trend <- MHW_dur_trends %>%
+map_MHW_dur_trend <- SST_MHW_trends %>%
   na.omit() %>% 
-  filter(p.value <= 0.05) %>% 
-  mutate(dec_trend_05 = quantile(dec_trend, probs = 0.05),
-         dec_trend_95 = quantile(dec_trend, probs = 0.95),
-         dec_trend = case_when(dec_trend > dec_trend_95 ~ dec_trend_95,
-                               dec_trend < dec_trend_05 ~ dec_trend_05,
-                               TRUE ~ dec_trend)) %>% 
+  filter(p.value_dur <= 0.05) %>% 
+  # mutate(dec_trend_05 = quantile(dec_trend, probs = 0.05),
+  #        dec_trend_95 = quantile(dec_trend, probs = 0.95),
+  #        dec_trend = case_when(dec_trend > dec_trend_95 ~ dec_trend_95,
+  #                              dec_trend < dec_trend_05 ~ dec_trend_05,
+  #                              TRUE ~ dec_trend)) %>% 
   ggplot() +
-  geom_tile(aes(fill = dec_trend, x = lon, y = lat)) +
+  geom_tile(aes(fill = dec_trend_dur, x = lon, y = lat)) +
   # geom_sf(data = MEOW, aes(colour = ECOREGION), fill = NA, show.legend = F) +
   geom_polygon(data = map_base, aes(group = group, x = lon, y = lat)) +
   scale_fill_gradient2(low = "yellow4", mid = "white", high = "green4") +
@@ -654,30 +652,17 @@ map_MHW_dur_trend <- MHW_dur_trends %>%
   # scale_colour_brewer(palette = "Set1") +
   labs(x = NULL, y = NULL, 
        fill = "Annual MHW\ndays (n/decade)", colour = "Ecoregion") +
-  coord_sf(expand = F) +
+  coord_sf(expand = F,
+           xlim = c(min(med_regions$lon), max(med_regions$lon)),
+           ylim = c(min(med_regions$lat), max(med_regions$lat))) +
   theme(legend.position = "top", 
         panel.background = element_rect(colour = "black", fill = NULL))
-# map_MHW_dur_trend
-
-# Rank tables of ecoregions
-## NB: This is pretty, but can't be combined with ggplot objects
-med_table <- MHW_dur_trends_ALL %>% 
-  dplyr::rename(Realm = REALM, Province = PROVINCE, Rank = rank, Trend = dec_trend_mean, SD = dec_trend_sd) %>% 
-  gt(groupname_col = "grouping") %>% 
-  tab_header(title = md("Mediterannean Sea ecoregions ranked by increasing MHW days")) %>% 
-  tab_spanner(label = "MHW duration (days/decade)", columns = matches("Trend|SD"))
-# med_table
-
-# Table theme
-t1 <- ttheme_default(core = list(bg_params = list(fill = c(rep(c("grey90", "grey95"), length.out = 7),
-                                                           rep(c("grey100", "grey95"), length.out = 10),
-                                                           rep(c("grey90", "grey95"), length.out = 12)))))
+map_MHW_dur_trend
 
 # Table
-med_table <- MHW_dur_trends_ALL %>% 
-  dplyr::rename(Realm = REALM, Province = PROVINCE, Rank = rank, Trend = dec_trend_mean, SD = dec_trend_sd) %>% 
-  dplyr::select(-grouping) %>% 
-  replace(is.na(.), "") %>% 
+med_MHW_dur_table <- med_trends %>% 
+  dplyr::rename(Province = PROVINCE, Rank = rank, Trend = dec_trend_dur_mean, SD = dec_trend_dur_sd) %>% 
+  select(Rank, Province, Ecoregion, Trend, SD) %>% 
   tableGrob(rows = NULL, theme = t1) %>%
   gtable_add_grob(grobs = segmentsGrob(
     x0 = unit(0,"npc"),
@@ -685,23 +670,16 @@ med_table <- MHW_dur_trends_ALL %>%
     x1 = unit(1,"npc"),
     y1 = unit(0,"npc"),
     gp = gpar(lwd = 2.0)),
-    t = 8, b = 8, l = 1, r = 6) %>%
-  gtable_add_grob(grobs = segmentsGrob(
-    x0 = unit(0,"npc"),
-    y0 = unit(0,"npc"),
-    x1 = unit(1,"npc"),
-    y1 = unit(0,"npc"),
-    gp = gpar(lwd = 2.0)),
-    t = 18, b = 18, l = 1, r = 6)
-# plot(med_table)
+    t = 9, b = 9, l = 1, r = 5)
+# plot(med_MHW_dur_table)
 
 # Combine SST figures
 fig_MHW_dur_maps <- ggpubr::ggarrange(map_MHW_dur_total, map_MHW_dur_trend, 
                                       ncol = 1, nrow = 2, align = "hv", 
                                       labels = c("A)", "B)"))
-fig_MHW_dur_all <- ggpubr::ggarrange(fig_MHW_dur_maps, med_table, ncol = 2, nrow = 1, 
-                                     labels = c(NA, "C)"), widths = c(1, 1))
-ggsave("graph/GLOBAL_MHW_duration.png", fig_MHW_dur_all, height = 11, width = 19)
+fig_MHW_dur_all <- ggpubr::ggarrange(fig_MHW_dur_maps, med_MHW_dur_table, ncol = 2, nrow = 1, 
+                                     labels = c(NA, "C)"), widths = c(1, 0.7))
+ggsave("figures/Med_MHW_duration.png", fig_MHW_dur_all, height = 11, width = 16.5)
 
 
 # Manuscript figure 1 -----------------------------------------------------
