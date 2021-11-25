@@ -947,7 +947,7 @@ manu_fig_4_a_data <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoreg
 write_csv(manu_fig_4_a_data, "data/manu_fig_4_a_data.csv")
 
 # Create plot
-manu_fig_4_a <- ggplot(manu_fig_5_a_data, aes(x = year, y = duration)) +
+manu_fig_4_a <- ggplot(manu_fig_4_a_data, aes(x = year, y = duration)) +
   geom_bar(aes(fill = as.factor(year)), colour = "black", stat = "identity", 
            show.legend = F, width = 0.8) +
   geom_point(aes(y = mme_prop), size = 5) +
@@ -977,31 +977,30 @@ manu_fig_4_a
 # Get MHW days and relate them to percentage of observations that have mortality
 load("data/MHW_cat_pixel_annual_JJASON.RData")
 
-## Use filter 3B for these analyses
+## Use filter 3B in the NW Med for these analyses
 mme_3B <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>%
   filter(Ecoregion == "Northwestern Mediterranean") %>%
-  mutate(mme_damage = case_when(`Damaged qualitative` %in% c("No") ~ 0, TRUE ~ 1)) %>% 
-  group_by(Ecoregion, `Area Monitored`, lon, lat, year) %>%
-  mutate(mme_record = n(),
-         mme_prop = sum(mme_damage)/mme_record,
-         damage_mean = mean(`Damaged percentage`, na.rm = T)) %>% 
-  ungroup() %>% 
-  dplyr::select(Ecoregion, `Area Monitored`, lon, lat, year, mme_prop, mme_record, damage_mean) %>%
-  distinct()
+  mutate(mme_damage = case_when(`Damaged qualitative` %in% c("No") ~ 0, TRUE ~ 1))
 
 # Match nearest pixels
 mme_mhw_pixel_match <- grid_match(mme_3B[c("lon", "lat")],
                                   MHW_pixels[c("lon", "lat")]) %>% 
   dplyr::rename(lon = lon.x, lat = lat.x, lon_sst = lon.y, lat_sst = lat.y) %>% 
   distinct()
+
+# Calculate data for plotting
 manu_fig_4_b_data <- mme_3B %>% 
   left_join(mme_mhw_pixel_match, by = c("lon", "lat")) %>% 
   left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
   mutate(duration_sum = replace_na(duration_sum, 0)) %>% 
   group_by(Ecoregion, `Area Monitored`, year) %>%
-  summarise(duration_sum = mean(duration_sum, na.rm = T),
-            mme_prop = mean(mme_prop, na.rm = T),
-            damage_mean = mean(damage_mean, na.rm = T), .groups = "drop")
+  summarise(NMME = sum(mme_damage),
+            NEVENTS = n(),
+            mme_prop = NMME/NEVENTS,
+            duration_sum = mean(duration_sum, na.rm = T),
+            damage_mean = mean(`Damaged percentage`, na.rm = T), .groups = "drop") %>% 
+  dplyr::select(Ecoregion, `Area Monitored`, year, NMME, NEVENTS, mme_prop, damage_mean, duration_sum) %>% 
+  filter(NEVENTS >= 3)
 write_csv(manu_fig_4_b_data, "data/manu_fig_4_b_data.csv")
 
 # Perform analysis against all MME above the lowest category etc.
@@ -1010,7 +1009,7 @@ manu_fig_4_b_label <- manu_fig_4_b_data %>%
             r_val = round(cor.test(mme_prop, duration_sum)$estimate, 2),
             p_val = round(cor.test(mme_prop, duration_sum)$p.value, 2),
             x_point = sum(range(duration_sum, na.rm = T))/2, .groups = "drop") %>% 
-  mutate(p_val = case_when(p_val < 0.01 ~ "p < 0.01",
+  mutate(p_val = case_when(p_val < 0.001 ~ "p < 0.001",
                            TRUE ~ paste0("p = ",p_val)))
 manu_fig_4_b <- manu_fig_4_b_data %>% 
   # filter(`Damaged qualitative` != "No") %>% 
@@ -1023,7 +1022,7 @@ manu_fig_4_b <- manu_fig_4_b_data %>%
   geom_label(data = manu_fig_4_b_label, alpha = 0.9, colour = "black",
              aes(y = 0.2, x = 70, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
   # The coloured text label
-  geom_label(data = manu_fig_5_b_label, alpha = 0.9, colour = "blue", label.size = 0, label.padding = unit(0, "mm"),
+  geom_label(data = manu_fig_4_b_label, alpha = 0.9, colour = "blue", label.size = 0, label.padding = unit(0, "mm"),
              aes(y = 0.2, x = 70, label = paste0("r = ",r_val,", ",p_val, ", n = ",count))) +
   scale_fill_viridis_d("Year", option = "D", aesthetics = c("colour", "fill")) +
   scale_y_continuous(limits = c(-0.1, 1.1), breaks = c(0, 0.25, 0.50, 0.75, 1), 

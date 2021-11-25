@@ -1,49 +1,25 @@
-Ecoregion,Area Monitored,year,duration_sum,mme_prop,damage_mean
-Northwestern Mediterranean,Bonifacio East,2015,58,1,49
-Northwestern Mediterranean,Bonifacio East,2016,0,1,49
-Northwestern Mediterranean,Bonifacio East,2017,17,1,13
-Northwestern Mediterranean,Bonifacio East,2018,77,0,1
-Northwestern Mediterranean,Bonifacio South,2015,60,1,18
-Northwestern Mediterranean,Bonifacio South,2017,24,0,0
-Northwestern Mediterranean,Cabrera Is.,2015,76.33333333333333,0.6666666666666666,13
-Northwestern Mediterranean,Cabrera Is.,2016,36.333333333333336,0.6666666666666666,14.666666666666666
-Northwestern Mediterranean,Cabrera Is.,2017,44.333333333333336,0.6666666666666666,18.333333333333332
-Northwestern Mediterranean,Cabrera Is.,2018,59.333333333333336,0.6666666666666666,14.666666666666666
-Northwestern Mediterranean,Cabrera Is.,2019,5.333333333333333,0,1.6666666666666667
-Northwestern Mediterranean,Calanques,2015,31,1,37.5
-Northwestern Mediterranean,Calanques,2016,15,0.5,25
-Northwestern Mediterranean,Calanques,2017,11.5,0.5,37.5
-Northwestern Mediterranean,Calanques,2018,98,1,37.5
-Northwestern Mediterranean,Calanques,2019,38,1,45
-Northwestern Mediterranean,Cap de Creus (North),2015,47,1,60
-Northwestern Mediterranean,Cap de Creus (North),2016,5,0,0
-Northwestern Mediterranean,Cap de Creus (North),2017,37.57142857142857,0.4642857142857143,15.428571428571429
-Northwestern Mediterranean,Cap de Creus (North),2018,71,0.7916666666666666,30.90277777777778
-Northwestern Mediterranean,Cap de Creus (North),2019,24.76923076923077,0.46153846153846156,34.46153846153846
-Northwestern Mediterranean,Cap de Creus (South),2017,41.15384615384615,0.15384615384615385,6.230769230769231
-Northwestern Mediterranean,Cap de Creus (South),2018,64.33333333333333,0.888888888888889,34.388888888888886
-Northwestern Mediterranean,Cap de Creus (South),2019,30.714285714285715,0.21428571428571427,12.571428571428571
-Northwestern Mediterranean,Columbretes Islands,2015,50,0,8
-Northwestern Mediterranean,Columbretes Islands,2016,26,0,2
-Northwestern Mediterranean,Columbretes Islands,2017,40,0,2
-Northwestern Mediterranean,Columbretes Islands,2018,72,0.5,9.5
-Northwestern Mediterranean,Columbretes Islands,2019,5,0,0
-Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2016,28.05263157894737,0.5,13.473684210526315
-Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2017,59.67741935483871,0.43548387096774194,17.225806451612904
-Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2018,74.8,0.8433333333333334,38.63333333333333
-Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2019,33.53846153846154,0.5576923076923077,28.615384615384617
-Northwestern Mediterranean,Ischia (Naples),2015,46,0.5,10
-Northwestern Mediterranean,Ischia (Naples),2016,5,0,0
-Northwestern Mediterranean,Ischia (Naples),2017,6,0.5,15
-Northwestern Mediterranean,Ischia (Naples),2018,50,0.5,12.5
-Northwestern Mediterranean,Ischia (Naples),2019,80,0.5,10
-Northwestern Mediterranean,Mallorca Is.,2015,68.875,0.625,14.5
-Northwestern Mediterranean,Mallorca Is.,2016,43.875,0.375,8.875
-Northwestern Mediterranean,Mallorca Is.,2017,55.125,0.875,24
-Northwestern Mediterranean,Mallorca Is.,2018,44.333333333333336,0.8888888888888888,25.333333333333332
-Northwestern Mediterranean,Mallorca Is.,2019,14.375,0.5,12
-Northwestern Mediterranean,Port-Cros NP,2018,83.5,1,14.75
-Northwestern Mediterranean,Scandola MPA,2015,40,0,8
-Northwestern Mediterranean,Scandola MPA,2016,11,1,64
-Northwestern Mediterranean,Scandola MPA,2017,24.6,0.2,4.9
-Northwestern Mediterranean,Scandola MPA,2018,49.8,1,34
+Ecoregion,Area Monitored,year,NMME,NEVENTS,mme_prop,damage_mean,duration_sum
+Northwestern Mediterranean,Cabrera Is.,2015,2,3,0.6666666666666666,13,76.33333333333333
+Northwestern Mediterranean,Cabrera Is.,2016,2,3,0.6666666666666666,14.666666666666666,36.333333333333336
+Northwestern Mediterranean,Cabrera Is.,2017,2,3,0.6666666666666666,18.333333333333332,44.333333333333336
+Northwestern Mediterranean,Cabrera Is.,2018,2,3,0.6666666666666666,14.666666666666666,59.333333333333336
+Northwestern Mediterranean,Cabrera Is.,2019,0,3,0,1.6666666666666667,5.333333333333333
+Northwestern Mediterranean,Calanques,2018,3,3,1,41.666666666666664,99.33333333333333
+Northwestern Mediterranean,Cap de Creus (North),2017,7,19,0.3684210526315789,12.421052631578947,37.8421052631579
+Northwestern Mediterranean,Cap de Creus (North),2018,19,25,0.76,25.24,71.24
+Northwestern Mediterranean,Cap de Creus (North),2019,6,17,0.35294117647058826,26.352941176470587,24.88235294117647
+Northwestern Mediterranean,Cap de Creus (South),2017,2,16,0.125,5.0625,41.4375
+Northwestern Mediterranean,Cap de Creus (South),2018,11,13,0.8461538461538461,36.07692307692308,61.38461538461539
+Northwestern Mediterranean,Cap de Creus (South),2019,3,20,0.15,8.8,30.55
+Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2016,10,21,0.47619047619047616,12.714285714285714,28.142857142857142
+Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2017,15,37,0.40540540540540543,15.405405405405405,59.75675675675676
+Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2018,39,50,0.78,35.14,75.04
+Northwestern Mediterranean,"El Montgrí, Les Illes Medes I El Baix Ter",2019,15,33,0.45454545454545453,22.818181818181817,33.60606060606061
+Northwestern Mediterranean,Mallorca Is.,2015,5,8,0.625,14.5,68.875
+Northwestern Mediterranean,Mallorca Is.,2016,3,8,0.375,8.875,43.875
+Northwestern Mediterranean,Mallorca Is.,2017,7,8,0.875,24,55.125
+Northwestern Mediterranean,Mallorca Is.,2018,8,9,0.8888888888888888,25.333333333333332,44.333333333333336
+Northwestern Mediterranean,Mallorca Is.,2019,4,8,0.5,12,14.375
+Northwestern Mediterranean,Port-Cros NP,2018,4,4,1,14.75,83.5
+Northwestern Mediterranean,Scandola MPA,2017,1,6,0.16666666666666666,4.833333333333333,24.5
+Northwestern Mediterranean,Scandola MPA,2018,7,7,1,31.571428571428573,49
