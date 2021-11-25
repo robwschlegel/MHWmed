@@ -924,10 +924,8 @@ mme_selected_2_mort <- filter(mme, selected_2 == "YES") %>%
 # mme_3B_mort <- filter(mme, Plot_3B %in% c("2015_MHW", "2016_MHW", "2017_MHW", "2018_MHW", "2019_MHW")) %>% # NB: This works much worse
   mutate(mme_damage = case_when(`Damaged qualitative` == "No" ~ 0, TRUE ~ 1)) %>% 
   group_by(Ecoregion, year) %>% 
-  mutate(mme_record = n(),
-         mme_prop = sum(mme_damage)/mme_record) %>% 
-  dplyr::select(Ecoregion, year, mme_prop, mme_record) %>% 
-  distinct()
+  summarise(mme_record = n(),
+            mme_prop = sum(mme_damage)/mme_record, .groups = "drop")
 
 # MHW stats for JJASON period
 load("data/MHW_cat_region.RData")
@@ -940,7 +938,7 @@ MHW_cat_region_JJASON <- MHW_cat_region %>%
 # Create region averages by all pixels
 mme_region <- mme_selected_2_mort %>%
 # mme_region <- mme_3B_mort %>% # This is much morse
-  group_by(year, Ecoregion) %>%
+  group_by(Ecoregion, year) %>%
   mutate(mme_prop = (mme_prop*100)+20) %>%
   filter(Ecoregion == "Northwestern Mediterranean")
 manu_fig_4_a_data <- left_join(mme_region, MHW_cat_region_JJASON, by = c("Ecoregion" = "region", "year"))
