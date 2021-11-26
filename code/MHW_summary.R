@@ -106,10 +106,10 @@ load("data/MHW_cat_region_pixel.RData")
 # Annual summaries --------------------------------------------------------
 
 # The occurrences per month per pixel
-doParallel::registerDoParallel(cores = 15)
+# doParallel::registerDoParallel(cores = 15)
 # system.time(
 # MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
-# ) # 258 seconds on 15 cores
+# ) # 267 seconds on 15 cores
 # save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
 # load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
 
@@ -117,7 +117,7 @@ doParallel::registerDoParallel(cores = 15)
 ## NB: Requires MHW_cat_pixel_monthly
 # system.time(
 # MHW_cat_pixel_annual <- cat_pixel_annual_calc()
-# ) # 220 seconds
+# ) # 218 seconds
 # save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_pixel_annual.RData")
 
@@ -125,21 +125,21 @@ load("data/MHW_cat_pixel_annual.RData")
 ## NB: Requires MHW_cat_pixel_monthly
 # system.time(
 # MHW_cat_pixel_annual_JJASON <- cat_pixel_annual_calc(sub_months = seq(6, 11))
-# ) # 197 seconds
+# ) # 186 seconds
 # save(MHW_cat_pixel_annual_JJASON, file = "data/MHW_cat_pixel_annual_JJASON.RData")
 load("data/MHW_cat_pixel_annual_JJASON.RData")
 
 # The occurrences per day all months
 # system.time(
 # MHW_cat_daily_annual <- plyr::ldply(res_files, cat_daily_calc, .parallel = T)
-# ) # 170 seconds on 15 cores
+# ) # 130 seconds on 15 cores
 # save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
 load("data/MHW_cat_daily_annual.RData")
 
 # The occurrences per day JJASON
 # system.time(
 # MHW_cat_daily_annual_JJASON <- plyr::ldply(res_files, cat_daily_calc, .parallel = T, sub_months = seq(6, 11))
-# ) # 164 seconds on 15 cores
+# ) # 116 seconds on 15 cores
 # save(MHW_cat_daily_annual_JJASON, file = "data/MHW_cat_daily_annual_JJASON.RData")
 load("data/MHW_cat_daily_annual_JJASON.RData")
 

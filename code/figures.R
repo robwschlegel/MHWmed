@@ -913,6 +913,19 @@ cat_daily_mean %>%
 # Difference in SST from first to last pentad
 med_pentad$anom_pentad[7]-med_pentad$anom_pentad[1]
 
+# Proportion of surface area affected by specific categories over the study period
+## Prop I
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 2015, year <= 2019,  `I Moderate` > 0), lon, lat)))/nrow(MHW_pixels)
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 2015, year <= 2019,  `II Strong` > 0), lon, lat)))/nrow(MHW_pixels)
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 2015, year <= 2019,  `III Severe` > 0), lon, lat)))/nrow(MHW_pixels)
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 2015, year <= 2019,  `IV Extreme` > 0), lon, lat)))/nrow(MHW_pixels)
+
+# Years with Extreme events
+filter(MHW_cat_pixel_annual, `IV Extreme` > 0) %>% 
+  dplyr::select(year) %>% 
+  distinct() %>% 
+  arrange(year)
+
 
 # Manuscript figure 4 -----------------------------------------------------
 

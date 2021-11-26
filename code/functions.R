@@ -242,13 +242,15 @@ cat_pixel_calc <- function(file_name){
     group_by(lon, lat) %>% 
     right_join(full_monthly_grid, by = c("year", "month", "category")) %>% # This used to be a left join...
     pivot_wider(values_from = count, names_from = category) %>% 
-    replace(is.na(.), 0)
+    replace(is.na(.), 0) %>% 
+    ungroup()
   
   # The earliest date of the highest category of event
   MHW_cat_pixel <- MHW_cat %>% 
     group_by(lon, lat, year, month) %>%
     filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>% 
-    filter(t == min(t)) %>% 
+    filter(t == min(t)) %>%
+    ungroup() %>% 
     dplyr::rename(max_int = intensity) %>% 
     unique() %>%
     data.frame() %>% 
@@ -267,18 +269,21 @@ cat_pixel_annual_calc <- function(sub_months = seq(1, 12)){
     filter(as.numeric(month) %in% sub_months) %>% 
     dplyr::select(lon, lat, year, duration, cum_int:`IV Extreme`) %>%
     group_by(lon, lat, year) %>%
-    summarise_all(sum)
+    summarise_all(sum) %>% 
+    ungroup()
   gc()
   cat_pixel_annual <- MHW_cat_pixel_monthly %>%
     filter(as.numeric(month) %in% sub_months) %>% 
     group_by(lon, lat, year) %>%
     filter(as.integer(category) == max(as.integer(category), na.rm = T)) %>%
     filter(t == min(t)) %>%
+    ungroup() %>% 
     dplyr::select(lon:category, max_int) %>%
     unique() %>%
     left_join(cat_pixel_annual_sum, by = c("lon", "lat", "year")) %>%
     dplyr::rename(duration_max = duration.x,
-                  duration_sum = duration.y)
+                  duration_sum = duration.y) %>% 
+    ungroup()
   gc()
   return(cat_pixel_annual)
 }
