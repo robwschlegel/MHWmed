@@ -685,8 +685,6 @@ ggsave("figures/Med_MHW_duration.png", fig_MHW_dur_all, height = 11, width = 16.
 # Manuscript figure 1 -----------------------------------------------------
 
 ## A: Map of temperature difference mean 1982-1986 vs 2015-2019
-# TODO:
-# Send final PDF to Dani for post processing
 
 # Load data
 load("data/MHW_clim_pixel_annual.RData")
