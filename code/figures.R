@@ -813,7 +813,7 @@ panel_C <- pixel_cat_pentad %>%
             aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
   geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), fill = "grey60") +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
-  geom_point(data = insitu_sites, aes(x = lon, y = lat), size = 3, shape = 21, fill = "white") +
+  geom_point(data = insitu_sites, aes(x = lon, y = lat), size = 3, shape = 21, fill = "cyan") +
   geom_label(data = ecoregion_labels, aes(x = lon, y = lat, label = Ecoregion), alpha = 0.8) +
   scale_fill_manual("Category", values = MHW_colours_compare,
                     breaks = c("Same", "II Strong", "III Severe", "IV Extreme")) +
@@ -892,6 +892,7 @@ panel_D <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
        x = "Year") +
   coord_cartesian(expand = F) +
   theme(panel.border = element_rect(colour = "black", fill = NA),
+        panel.background = element_rect(fill = "white"),
         legend.margin = margin(t = 5, r = 15, b = 5, l = 5),
         legend.text = element_text(size = 14),
         legend.title = element_text(size = 16),
