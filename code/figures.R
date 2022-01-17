@@ -716,9 +716,9 @@ pixel_pentad <- MHW_clim_pixel_annual %>%
 # Plot data
 panel_A <- ggplot(pixel_pentad) +
   geom_tile(aes(fill = temp_diff, x = lon, y = lat), colour = NA) +
-  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), fill = "grey60") +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
-  geom_point(data = insitu_sites, aes(x = lon, y = lat), size = 3, shape = 21, fill = "white") +
+  geom_point(data = insitu_sites, aes(x = lon, y = lat), size = 3, shape = 21, fill = "cyan") +
   geom_label(data = ecoregion_labels, aes(x = lon, y = lat, label = Ecoregion), alpha = 0.8) +
   scale_fill_gradient2(low = "yellow", mid = "orange", high = "red",
                        breaks = c(0.7, 1.2, 1.7), midpoint = 1.1) +
@@ -769,7 +769,7 @@ panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
        # title = "Annual SST anomalies [1982 to 2019]",
        x = "Year") +
   theme(panel.border = element_rect(colour = "black", fill = NA),
-        # panel.background = element_rect(fill = "white"),
+        panel.background = element_rect(fill = "white"),
         # legend.position = c(0.91, 0.83),
         legend.background = element_rect(colour = "black"),
         legend.margin = margin(t = 5, r = 15, b = 5, l = 5),
@@ -811,7 +811,7 @@ panel_C <- pixel_cat_pentad %>%
             aes(x = lon, y = lat, fill = cat_max_diff_cat), alpha = 0.3) +
   geom_tile(data = filter(pixel_cat_pentad, cat_max_diff_cat != "Same"),
             aes(x = lon, y = lat, fill = cat_max_diff_cat), colour = NA, show.legend = T) +
-  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group)) +
+  geom_polygon(data = map_base, aes(x = lon, y = lat, group = group), fill = "grey60") +
   geom_sf(data = MEOW, alpha = 1, aes(geometry = geometry), fill = NA, colour = "forestgreen") +
   geom_point(data = insitu_sites, aes(x = lon, y = lat), size = 3, shape = 21, fill = "white") +
   geom_label(data = ecoregion_labels, aes(x = lon, y = lat, label = Ecoregion), alpha = 0.8) +
