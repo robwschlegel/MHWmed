@@ -1012,6 +1012,14 @@ manu_fig_4_b_data <- mme_3B %>%
   filter(NEVENTS >= 3)
 write_csv(manu_fig_4_b_data, "data/manu_fig_4_b_data.csv")
 
+# Number of SST pixels per area monitored
+mme_mhw_pixels_per_area <- mme_3B %>% 
+  left_join(mme_mhw_pixel_match, by = c("lon", "lat")) %>% 
+  left_join(MHW_cat_pixel_annual_JJASON, by = c("year", "lon_sst" = "lon", "lat_sst" = "lat")) %>% 
+  dplyr::select(Ecoregion, `Area Monitored`, year, lon_sst, lat_sst) %>% 
+  group_by(Ecoregion, `Area Monitored`, year) %>% 
+  summarise(sst_pixels = n(), .groups = "drop")
+
 # Perform analysis against all MME above the lowest category etc.
 manu_fig_4_b_label <- manu_fig_4_b_data %>%
   summarise(count = n(),
