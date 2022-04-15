@@ -706,7 +706,7 @@ ecoregion_labels <- data.frame(lon = c(17.4, 33.6, 12.1, 20.8, 25.7, -2.26, 3.5,
 
 # Prep data
 pixel_pentad <- MHW_clim_pixel_annual %>% 
-  right_join(med_regions, by = c("lon", "lat")) %>% 
+  # right_join(med_regions, by = c("lon", "lat")) %>% 
   mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
   group_by(lon, lat, pentad) %>% 
   summarise(temp = mean(temp, na.rm = T), .groups = "drop") %>% 
@@ -743,22 +743,25 @@ panel_A
 
 ## B: Barplots of mean Med SST anom with ~5 year average segments
 # Prep data
+# right_join(med_regions, by = c("lon", "lat")) %>% 
 med_annual <- MHW_clim_pixel_annual %>% 
   right_join(med_regions, by = c("lon", "lat")) %>% 
   group_by(year) %>% 
-  summarise(temp = mean(temp, na.rm = T), .groups = "drop") %>% 
-  mutate(anom = temp - mean(temp))
+  summarise(temp_annual = mean(temp, na.rm = T),
+            temp_sd = sd(temp, na.rm = T), .groups = "drop") %>% 
+  mutate(temp_anom = temp_annual - mean(temp_annual))
 med_pentad <- med_annual %>% 
   mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
   group_by(pentad) %>% 
-  summarise(anom_pentad = mean(anom, na.rm = T), .groups = "drop") %>%
+  summarise(anom_pentad = mean(temp_anom, na.rm = T),
+            anom_sd_pentad = sd(temp_anom, na.rm = T), .groups = "drop") %>%
   separate(pentad, into = c("start_year", "end_year"), sep = ",", remove = F) %>% 
   mutate(start_year = as.numeric(sub("[(]", "", start_year)) + 1,
          end_year = as.numeric(sub("]", "", end_year)))
 
 # Plot data
-panel_B <- ggplot(med_annual, aes(x = year, y = anom)) +
-  geom_bar(aes(fill = anom), stat = "identity", width = 1, show.legend = F) +
+panel_B <- ggplot(med_annual, aes(x = year, y = temp_anom)) +
+  geom_bar(aes(fill = temp_anom), stat = "identity", width = 1, show.legend = F) +
   geom_hline(yintercept = 0) +
   geom_segment(data = med_pentad, size = 2, lineend = "round",
                aes(x = start_year, xend = end_year, 
@@ -911,11 +914,17 @@ cat_daily_mean %>%
   summarise(first_n_cum_prop_sum = sum(first_n_cum_prop)) %>% 
   arrange(-first_n_cum_prop_sum)
 
-# Difference in SST from first to last pentad
+# Difference in SST from first to last pentad +- variance
 med_pentad$anom_pentad[7]-med_pentad$anom_pentad[1]
+filter(med_annual, year <= 1986 | year >= 2015) %>% summarise(sd = sd(abs(temp_anom)))
 
 # Proportion of surface area affected by specific categories over the study period
-## Prop I
+## Debut pentad
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 1982, year <= 1986,  `I Moderate` > 0), lon, lat)))/nrow(MHW_pixels)
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 1982, year <= 1986,  `II Strong` > 0), lon, lat)))/nrow(MHW_pixels)
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 1982, year <= 1986,  `III Severe` > 0), lon, lat)))/nrow(MHW_pixels)
+nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 1982, year <= 1986,  `IV Extreme` > 0), lon, lat)))/nrow(MHW_pixels)
+## Modern pentad
 nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 2015, year <= 2019,  `I Moderate` > 0), lon, lat)))/nrow(MHW_pixels)
 nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 2015, year <= 2019,  `II Strong` > 0), lon, lat)))/nrow(MHW_pixels)
 nrow(distinct(dplyr::select(filter(MHW_cat_pixel_annual, year >= 2015, year <= 2019,  `III Severe` > 0), lon, lat)))/nrow(MHW_pixels)
@@ -926,6 +935,35 @@ filter(MHW_cat_pixel_annual, `IV Extreme` > 0) %>%
   dplyr::select(year) %>% 
   distinct() %>% 
   arrange(year)
+
+# Ecoregion specific stats
+ecoregion_annual <- MHW_clim_pixel_annual %>% 
+  right_join(med_regions, by = c("lon", "lat")) %>% 
+  group_by(Ecoregion, year) %>% 
+  summarise(temp_annual = mean(temp, na.rm = T),
+            temp_annual_sd = sd(temp, na.rm = T), .groups = "drop") %>% 
+  group_by(Ecoregion) %>% 
+  mutate(temp_mean = mean(temp_annual),
+         temp_anom = temp_annual - temp_mean) %>% 
+  ungroup()
+ecoregion_pentad <- ecoregion_annual %>% 
+  mutate(pentad = cut(year, c(1981, 1986, 1992, 1998, 2003, 2009, 2014, 2019))) %>% 
+  group_by(Ecoregion, pentad) %>% 
+  summarise(temp = mean(temp_anom, na.rm = T), .groups = "drop") %>% 
+  pivot_wider(id_cols = c("Ecoregion"), names_from = "pentad", values_from = "temp") %>% 
+  mutate(temp_diff = `(2014,2019]` - `(1981,1986]`)
+ecoregion_pentad_diff <- pixel_pentad %>% 
+  right_join(med_regions, by = c("lon", "lat")) %>%
+  group_by(Ecoregion) %>%
+  summarise(min_temp_diff = min(temp_diff),
+            mean_temp_diff = mean(temp_diff),
+            max_temp_diff = max(temp_diff))
+
+# Standard deviation of annual temperature anomaly during pentad years
+filter(ecoregion_annual, year <= 1986 | year >= 2015) %>% group_by(Ecoregion) %>% summarise(sd = sd(abs(temp_anom)))
+
+# Average decadal trend for Med
+lm(temp_annual ~ year, med_annual)
 
 
 # Manuscript figure 4 -----------------------------------------------------
