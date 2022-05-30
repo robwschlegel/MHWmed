@@ -99,7 +99,6 @@ single_pixel <- map_df(.x = med_SST_files, .f = load_nc_sub, lat_row = which(lat
   filter(lon == -5.1458511)
 gc()
 
-
 # We then run the MHW stats for this one pixel
 MHW_pixel <- single_pixel %>%
   # filter(lat == -63.375, lon == 0.125) %>% # tester...
