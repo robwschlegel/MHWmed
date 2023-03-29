@@ -717,10 +717,11 @@ total_summary_fig <- function(df){
   }
   
   # Load OISST annual global MHW summaries
-  OISST_global <- readRDS("data/OISST_cat_daily_1992-2018_total.Rds") %>% 
+  OISST_global <- readRDS("data/OISST_cat_daily_1982-2011_total.Rds") %>% 
+    filter(t <= 2019) %>% 
     group_by(t) %>% 
-    mutate(cat_n_prop_stack = cumsum(cat_n_prop),
-           first_n_cum_prop_stack = cumsum(first_n_cum_prop))
+    mutate(cat_area_prop_stack = cumsum(cat_area_cum_prop),
+           first_area_cum_prop_stack = cumsum(first_area_cum_prop))
   
   # Total summary
   # Create mean values of daily count
@@ -740,10 +741,10 @@ total_summary_fig <- function(df){
              position = position_stack(reverse = TRUE), width = 1) +
     # geom_line(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, colour = category), 
     # linetype = "dotted", show.legend = F) +
-    geom_point(data = OISST_global, aes(x = t, y = cat_n_prop_stack/dd, fill = category), 
+    geom_point(data = OISST_global, aes(x = t, y = cat_area_prop_stack/dd, fill = category), 
                shape = 21, show.legend = F) +
-    geom_rect(aes(xmin = 2014.5, xmax = 2019.4, ymin = 0.1, ymax = 99.9), 
-              colour = "black", fill = NA, size = 1.2) +
+    # geom_rect(aes(xmin = 2014.5, xmax = 2019.4, ymin = 0.1, ymax = 99.9), 
+    #           colour = "black", fill = NA, size = 1.2) +
     scale_fill_manual("Category", values = MHW_colours) +
     scale_colour_manual("Category", values = MHW_colours) +
     scale_y_continuous(limits = c(0, 100),
@@ -769,10 +770,10 @@ total_summary_fig <- function(df){
              position = position_stack(reverse = TRUE), width = 1) +
     # geom_line(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, colour = category), 
     # linetype = "dotted", show.legend = F) +
-    geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack, fill = category), 
+    geom_point(data = OISST_global, aes(x = t, y = first_area_cum_prop_stack, fill = category), 
                shape = 21, show.legend = F) +
-    geom_rect(aes(xmin = 2014.5, xmax = 2019.4, ymin = 0, ymax = 1), 
-              colour = "black", fill = NA, size = 1.2) +
+    # geom_rect(aes(xmin = 2014.5, xmax = 2019.4, ymin = 0, ymax = 1), 
+    #           colour = "black", fill = NA, size = 1.2) +
     scale_fill_manual("Category", values = MHW_colours) +
     scale_colour_manual("Category", values = MHW_colours) +
     scale_y_continuous(position = "right", 
