@@ -609,7 +609,7 @@ annual_summary_fig <- function(chosen_year){
   
   # Title
   fig_title <- paste0("Mediterranean MHW categories of ",chosen_year,
-                      "\nNOAA Med SST ~4km; Climatogy period: 1982-2011")
+                      "\nCMEMS Med SST ~4km; Climatology period: 1982-2011")
   
   ## Create figures
   # Global map of MHW occurrence
@@ -689,11 +689,12 @@ annual_summary_fig <- function(chosen_year){
   
   # Standard caption technique
   fig_ALL_cap <- grid::textGrob(fig_title, x = 0.01, just = "left", gp = grid::gpar(fontsize = 20))
-  fig_ALL_cap <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL, heights = c(0.07, 1), nrow = 2)
+  fig_ALL_cap <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL, heights = c(0.07, 1), nrow = 2) + 
+    ggpubr::bgcolor("white") + ggpubr::border("white")
   
   # print("Saving final figure")
   ggsave(fig_ALL_cap, height = 12, width = 18, 
-         filename = paste0("figures/MHW_cat_summary_",chosen_year,".png"))
+         filename = paste0("figures/MHW_cat_summary_",chosen_year,".png")) 
   # RAM help
   rm(MHW_cat_filter, MHW_cat_pixel_filter);gc()
 }
@@ -708,7 +709,7 @@ total_summary_fig <- function(df){
     day_sub <- 31
     dd <- 1
     y2_labs <- c("5%", "10%", "15%", "20%", "25%")
-  }  else {
+  } else {
     JJASON_bit <- " (JJASON)"
     month_sub <- 11
     day_sub <- 30
@@ -795,14 +796,15 @@ total_summary_fig <- function(df){
   min_year <- min(cat_daily_mean$year)
   max_year <- max(cat_daily_mean$year)
   fig_title <- paste0("Mediterranean MHW categories summary: ",min_year," - ", max_year, JJASON_bit,
-                      "\nCMEMS Med SST ~4km; Climatogy period: 1982-2011")
+                      "\nCMEMS Med SST ~4km; Climatology period: 1982-2011")
   
   # Stick them together and save
   fig_ALL_historic <- ggpubr::ggarrange(fig_count_historic, fig_cum_historic,
                                         ncol = 2, align = "hv", labels = c("A)", "B)"), hjust = -0.1,
                                         font.label = list(size = 14), common.legend = T, legend = "bottom")
   fig_ALL_cap <- grid::textGrob(fig_title, x = 0.01, just = "left", gp = grid::gpar(fontsize = 18))
-  fig_ALL_full <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL_historic, heights = c(0.25, 1), nrow = 2)
+  fig_ALL_full <- ggpubr::ggarrange(fig_ALL_cap, fig_ALL_historic, heights = c(0.25, 1), nrow = 2) + 
+    ggpubr::bgcolor("white") + ggpubr::border("white")
   # ggsave(fig_ALL_full, filename = "figures/MHW_cat_historic.png", height = 4.25, width = 12)
 }
 
