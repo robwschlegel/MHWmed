@@ -14,41 +14,44 @@ library(tidyverse) # A staple for most modern data management in R
 library(tidync) # For easily dealing with NetCDF data
 library(reticulate) # For using Python in R
 
+# NB: Another way to do this, but not recommended. Easier to use CLI
 # Set up virtual environment
-virtualenv_create(envname = "CopernicusMarine", python = install_python())
-virtualenv_install("CopernicusMarine", packages = c("copernicusmarine"))
-reticulate::use_virtualenv("CopernicusMarine", required = TRUE)
-
+# virtualenv_create(envname = "CopernicusMarine", python = install_python())
+# virtualenv_install("CopernicusMarine", packages = c("copernicusmarine"))
+# reticulate::use_virtualenv("CopernicusMarine", required = TRUE)
 # Store the python package to use the functions in R
-cmt <- import("copernicusmarine")
-
+# cmt <- import("copernicusmarine")
 # Add login crednetials if necessary
 # I.e. https://www.copernicus.eu/en
-cmt$login("<username>", "<password>")
+# cmt$login("<username>", "<password>")
 
-# Or install directly via python via the terminal
+# Install copernicus marine toolbox directly via python via the terminal
 system("python -m pip install copernicusmarine")
 
 
 # Download ----------------------------------------------------------------
 
-# NB: For whatever reason, this hangs and does not download
-cmt$subset(
-  dataset_id="cmems_SST_MED_SST_L4_REP_OBSERVATIONS_010_021",
-  variables=list("analysed_sst"),
-  minimum_longitude=-18.125,
-  maximum_longitude=36.32500076293945,
-  minimum_latitude=30.125,
-  maximum_latitude=46.025001525878906,
-  start_datetime="2024-06-04T00:00:00",
-  end_datetime="2024-06-04T00:00:00",
-  output_directory = "~/pCloudDrive/data/CMEMS_Med/"
-)
+# Wrapper to pass to CLI
+subset_CMEMS <- function(df, data_ID, var_ID, out_dir){
+  start_date <- df$start_date; end_date <- df$end_date
+  out_name <- paste0(data_ID,"_",start_date,"_", end_date)
+  system(paste("copernicusmarine subset -i", data_ID, "--start-datetime", start_date, "--end-datetime", end_date, 
+              "-v", var_ID, "-o", out_dir, "-f", out_name, "--force-download"))
+}
 
-# Or use CLI directly
-# NB: One would create a function or loop to create the CLI calls desired
-system('copernicusmarine get -i cmems_SST_MED_SST_L4_REP_OBSERVATIONS_010_021 --filter "*2023012[1]*" -o "/home/robert/pCloudDrive/data/CMEMS_Med/" --force-download')
+# Dataframe of start and end dates to cycle through
+dates <- data.frame(start_date = paste0(1982:2023, "-01-01"), end_date = paste0(1982:2023, "-12-31")) |> 
+  mutate(row_idx = 1:n())
 
-# Subset via CLI
-# NB: Subset can also be used to compile files into a single download
-system('copernicusmarine subset -i cmems_SST_MED_SST_L4_REP_OBSERVATIONS_010_021 --start-datetime 2022-01-01 --end-datetime 2022-01-31 -o "/home/robert/pCloudDrive/data/CMEMS_Med/" --force-download')
+# Ply the downloads by year
+## Takes about 20 seconds per year
+plyr::d_ply(dates, c("row_idx"), subset_CMEMS,
+            data_ID = "cmems_SST_MED_SST_L4_REP_OBSERVATIONS_010_021", 
+            var_ID = "analysed_sst", out_dir = "~/data/CMEMS_Med/")
+
+
+# Test --------------------------------------------------------------------
+
+ncdf4::nc_open("~/data/CMEMS_Med/cmems_SST_MED_SST_L4_REP_OBSERVATIONS_010_021_1982-01-01_1982-12-31.nc")
+
+sst_test <- tidync::tidync("~/data/CMEMS_Med/cmems_SST_MED_SST_L4_REP_OBSERVATIONS_010_021_1982-01-01_1982-12-31.nc") |> hyper_tibble()

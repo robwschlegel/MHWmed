@@ -1,13 +1,6 @@
 # code/MHW_summary.R
 # This script creates annual and total summaries from the MHW Med results
 
-# Revise text for section 2
-# Add text for section 4
-# https://docs.google.com/document/d/1b4YRlkFddQusDwBzYxeY7vmIKQDymL8hwDQtH11GKfE/edit
-
-# Final figure
-# See sketch from Quim
-
 
 # Setup -------------------------------------------------------------------
 
@@ -22,28 +15,32 @@ registerDoParallel(cores = 15)
 
 # All pixels
 # system.time(
-# MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, mme_select = mme_select_4, .parallel = F)
+# MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, mme_select = mme_selected_4, .parallel = F)
 # ) # 38 seconds for 1 on 15 cores, ~6.5 minutes total
 # save(MHW_cat_region, file = "data/MHW_cat_region.RData")
 # readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
 load("data/MHW_cat_region.RData")
 
 # Coastal pixels
+#NB: Not running as of 2024-07-05 due to minute lon/lat differences in 'coastal_coords' object
 # system.time(
-#   MHW_cat_region_coast <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, pixel_sub = "coast", .parallel = F)
+#   MHW_cat_region_coast <- plyr::ldply(unique(med_regions$Ecoregion), region_calc,
+#                                       mme_select = mme_selected_4, pixel_sub = "coast", .parallel = F)
 # ) # ~6 minutes total
 # save(MHW_cat_region_coast, file = "data/MHW_cat_region_coast.RData")
 # readr::write_csv(MHW_cat_region_coast, "data/MHW_cat_region_coast.csv")
-load("data/MHW_cat_region_coast.RData")
+# load("data/MHW_cat_region_coast.RData")
 
 # MME pixels
 # NB: This filters out pixels with "No" damage and uses selected_4 rows
+#NB: Not running as of 2024-07-05 due to minute lon/lat differences in mme_select object
 # system.time(
-#   MHW_cat_region_pixel <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, pixel_sub = "pixel", .parallel = F)
+#   MHW_cat_region_pixel <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
+#                                       mme_select = mme_selected_4, pixel_sub = "pixel")
 # ) # ~1 minutes total
 # save(MHW_cat_region_pixel, file = "data/MHW_cat_region_pixel.RData")
 # readr::write_csv(MHW_cat_region_pixel, "data/MHW_cat_region_pixel.csv")
-load("data/MHW_cat_region_pixel.RData")
+# load("data/MHW_cat_region_pixel.RData")
 
 
 # Ecoregion summary figures -----------------------------------------------
@@ -109,7 +106,7 @@ load("data/MHW_cat_region_pixel.RData")
 # doParallel::registerDoParallel(cores = 15)
 # system.time(
 # MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
-# ) # 267 seconds on 15 cores
+# ) # 217 seconds on 15 cores
 # save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
 # load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
 
@@ -117,7 +114,7 @@ load("data/MHW_cat_region_pixel.RData")
 ## NB: Requires MHW_cat_pixel_monthly
 # system.time(
 # MHW_cat_pixel_annual <- cat_pixel_annual_calc()
-# ) # 218 seconds
+# ) # 140 seconds
 # save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
 load("data/MHW_cat_pixel_annual.RData")
 
@@ -125,7 +122,7 @@ load("data/MHW_cat_pixel_annual.RData")
 ## NB: Requires MHW_cat_pixel_monthly
 # system.time(
 # MHW_cat_pixel_annual_JJASON <- cat_pixel_annual_calc(sub_months = seq(6, 11))
-# ) # 186 seconds
+# ) # 111 seconds
 # save(MHW_cat_pixel_annual_JJASON, file = "data/MHW_cat_pixel_annual_JJASON.RData")
 load("data/MHW_cat_pixel_annual_JJASON.RData")
 
@@ -139,7 +136,7 @@ load("data/MHW_cat_daily_annual.RData")
 # The occurrences per day JJASON
 # system.time(
 # MHW_cat_daily_annual_JJASON <- plyr::ldply(res_files, cat_daily_calc, .parallel = T, sub_months = seq(6, 11))
-# ) # 116 seconds on 15 cores
+# ) # 92 seconds on 15 cores
 # save(MHW_cat_daily_annual_JJASON, file = "data/MHW_cat_daily_annual_JJASON.RData")
 load("data/MHW_cat_daily_annual_JJASON.RData")
 
@@ -163,7 +160,7 @@ load("data/MHW_cat_summary_annual_JJASON.RData")
 doParallel::registerDoParallel(cores = 15)
 system.time(
 MHW_clim_pixel_annual <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T)
-) # 393 seconds on 15 cores
+) # 372 seconds on 15 cores
 save(MHW_clim_pixel_annual, file = "data/MHW_clim_pixel_annual.RData")
 
 # The same for JJASON
@@ -181,7 +178,7 @@ save(MHW_clim_pixel_annual_JJASON, file = "data/MHW_clim_pixel_annual_JJASON.RDa
 # Create annual summary figures
 # NB: This is very RAM heavy
 doParallel::registerDoParallel(cores = 15)
-# plyr::l_ply(1982:2019, annual_summary_fig, .parallel = T)
+plyr::l_ply(1982:2023, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
 total_summary <- total_summary_fig(MHW_cat_summary_annual)
