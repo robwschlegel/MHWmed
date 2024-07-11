@@ -2,6 +2,7 @@
 .Rhistory
 .RData
 .Ruserdata
+metadata/CMEMS_cred.csv
 data/**/*.nc
 data/**/*.zip
 data/**/*.Rds
