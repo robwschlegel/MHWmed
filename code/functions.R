@@ -29,9 +29,9 @@ lat_idx <- unique(med_sea_coords$lat)
 lon_idx <- unique(med_sea_coords$lon)
 
 # MME data
-suppressWarnings( # Supress warning about non-numeric values in lower/upper depth columns which aren't used
-mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME dataset.csv", guess_max = 1000) |> 
-  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) |> 
+suppressWarnings( # Suppress warning about non-numeric values in lower/upper depth columns which aren't used
+mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME dataset.csv", guess_max = 1000) |>
+  dplyr::rename(lon = Longitude, lat = Latitude, year = Year) |>
   mutate(year = as.numeric(gsub('[.]', '', as.character(year))),
          lon = as.numeric(gsub('[,]', '.', as.character(lon))),
          lat = as.numeric(sub("(.{2})(.*)", "\\1.\\2", lat)),
@@ -39,11 +39,11 @@ mme <- read_csv("data/Collaborative_tasks_version_database_protected - MME datas
          `Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Upper Depth`))),
          `Mortality Lower Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Lower Depth`))),
          `Mortality Upper Depth` = as.numeric(gsub('[,]', '.', as.character(`Mortality Upper Depth`))),
-         Ecoregion = ifelse(Ecoregion == "North Western Mediterranean", "Northwestern Mediterranean", Ecoregion)) |> 
+         Ecoregion = ifelse(Ecoregion == "North Western Mediterranean", "Northwestern Mediterranean", Ecoregion)) |>
   dplyr::select(year:`Damaged qualitative`, contains(c("selected", "same as", "Plot_"))) |>
   # filter(`Damaged qualitative` != "No", # Filter out 'No' values
   # `Upper Depth` <= 15,
-  # Species != "Pinna nobilis") |> 
+  # Species != "Pinna nobilis") |>
   mutate(Ecoregion = case_when(Ecoregion == "Western Mediterranean" & lat >= 39 ~ "Northwestern Mediterranean",
                                Ecoregion == "Western Mediterranean" & lat < 39 ~ "Southwestern Mediterranean",
                                TRUE ~ Ecoregion),
@@ -108,14 +108,22 @@ med_base <- ggplot() +
 
 # There appear to be some minor pixel issues near the coast with MME matches to non-values
 # So instead we load and use the MHW results directly to ensure MME pairings to MHW pixels
-load("data/MHW_cat_pixel_annual.RData")
-MHW_pixels <- MHW_cat_pixel_annual |> 
-  ungroup() |> 
-  select(lon, lat) |> 
-  distinct()
+if(file.exists("data/MHW_cat_pixel_annual.RData")) load("data/MHW_cat_pixel_annual.RData")
+if(exists("MHW_cat_pixel_annual")) {
+  MHW_pixels <- MHW_cat_pixel_annual |>
+    ungroup() |>
+    select(lon, lat) |>
+    distinct()
+}
 
 
 # Functions ---------------------------------------------------------------
+
+# Function for re-loading .RData files as desired
+loadRData <- function(fileName){
+  load(fileName)
+  get(ls()[ls() != "fileName"])
+}
 
 # Function for finding and cleaning up points within a given region polygon
 points_in_region <- function(region_in){
@@ -271,7 +279,12 @@ cat_pixel_calc <- function(file_name){
 }
 
 # Function for calculating stats for each individual year
-cat_pixel_annual_calc <- function(sub_months = seq(1, 12)){
+cat_pixel_annual_calc <- function(base_years, sub_months = seq(1, 12)){
+  
+  # Determine file
+  MHW_cat_pixel_monthly <- loadRData(paste0("data/MHW_cat_pixel_monthly_",
+                                            base_years[1],"_",base_years[2],".RData"))
+  
   cat_pixel_annual_sum <- MHW_cat_pixel_monthly |>
     filter(as.numeric(month) %in% sub_months) |> 
     dplyr::select(lon, lat, year, duration, cum_int:`IV Extreme`) |>
@@ -460,7 +473,7 @@ region_proc <- function(file_name, region_coords_sub){
 }
 
 # Regional/seasonal summary calculations
-region_calc <- function(region_name, mme_select, pixel_sub = "full"){
+region_calc <- function(region_name, base_years, pixel_sub = "full"){
   
   print(paste0("Began run on ",region_name," at ",Sys.time()))
   
@@ -491,13 +504,15 @@ region_calc <- function(region_name, mme_select, pixel_sub = "full"){
   }
   
   # Get file subset
+  base_years_stub <- paste(base_years, collapse = "_")
+  res_files_base_years <- res_files[grepl(base_years_stub, res_files)]
   file_sub <- data.frame(lat_index = seq_len(length(unique(med_sea_coords$lat))),
                          lat = unique(med_sea_coords$lat)) |> 
     filter(lat %in% region_coords_sub$lat)
   
   # load necessary files
   # registerDoParallel(cores = 7)
-  cat_res <- plyr::ldply(res_files[file_sub$lat_index], region_proc,
+  cat_res <- plyr::ldply(res_files_base_years[file_sub$lat_index], region_proc,
                          .parallel = T,
                          region_coords_sub = region_coords_sub) |> 
     filter(pixels > 0) |> 
@@ -534,7 +549,7 @@ ecoregion_summary_fig <- function(region_sub,
   }
   
   # Plot
-  region_plot <- MHW_cat_region |> 
+  region_plot <- MHW_cat_region_1982_2011 |> 
     filter(region == region_sub,
            year %in% year_range,
            month %in% month_range) |> 
@@ -561,7 +576,7 @@ ecoregion_summary_fig <- function(region_sub,
 
 # Function for creating multi-faceted stacked barplots for ecoregion trend summaries
 ecoregion_trend_fig <- function(region_sub, 
-                                year_range = seq(1982, 2019), 
+                                year_range = seq(1982, 2023), 
                                 month_range = lubridate::month(seq(6, 11), label = T, abb = T)){
   
   # File name
@@ -573,7 +588,7 @@ ecoregion_trend_fig <- function(region_sub,
   }
   
   # Plot
-  region_plot <- MHW_cat_region |> 
+  region_plot <- MHW_cat_region_1982_2011 |> 
     filter(region == region_sub,
            year %in% year_range,
            month %in% month_range) |> 
@@ -596,7 +611,7 @@ ecoregion_trend_fig <- function(region_sub,
 
 # Function for comparing 
 ecoregion_pixel_fig <- function(region_sub, 
-                                year_range = seq(1982, 2019), 
+                                year_range = seq(1982, 2023), 
                                 month_range = lubridate::month(seq(6, 11), label = T, abb = T)){
   
 }
@@ -607,8 +622,8 @@ annual_summary_fig <- function(chosen_year){
   paste0("Started run on ",chosen_year," at ", Sys.time())
   
   # Chose the year of categories to display
-  MHW_cat_filter <- filter(MHW_cat_summary_annual, year == chosen_year)
-  MHW_cat_pixel_filter <- filter(MHW_cat_pixel_annual, year == chosen_year)
+  MHW_cat_filter <- filter(MHW_cat_summary_annual_1982_2011, year == chosen_year)
+  MHW_cat_pixel_filter <- filter(MHW_cat_pixel_annual_1982_2011, year == chosen_year)
   gc()
   
   # Extract small data.frame for easier labeling
@@ -620,7 +635,7 @@ annual_summary_fig <- function(chosen_year){
   
   # Title
   fig_title <- paste0("Mediterranean MHW categories of ",chosen_year,
-                      "\nCMEMS Med SST 0.05°; Climatology period: 1991-2020")
+                      "\nCMEMS Med SST 0.05°; Climatology period: 1982-2011")
   
   ## Create figures
   # Global map of MHW occurrence
@@ -719,13 +734,15 @@ total_summary_fig <- function(df){
     month_sub <- 12
     day_sub <- 31
     dd <- 1
-    y2_labs <- c("5%", "10%", "15%", "20%", "25%", "30%")
+    y2_labs <- c("10%", "20%", "30%", "40%", "50%")
+    break_vals <- c(18.25, 36.5, 54.75, 73, 91.25)*2
   } else {
     JJASON_bit <- " (JJASON)"
     month_sub <- 11
     day_sub <- 30
     dd <- 2
     y2_labs <- c("10%", "20%", "30%", "40%", "50%", "60%")
+    break_vals <- c(18.25, 36.5, 54.75, 73, 91.25, 109.5)
   }
   
   # Load OISST annual global MHW summaries
@@ -760,11 +777,11 @@ total_summary_fig <- function(df){
     #           colour = "black", fill = NA, size = 1.2) +
     scale_fill_manual("Category", values = MHW_colours) +
     scale_colour_manual("Category", values = MHW_colours) +
-    scale_y_continuous(limits = c(0, 120),
-                       breaks = seq(20, 100, length.out = 5),
+    scale_y_continuous(limits = c(0, max(break_vals)),
+                       breaks = seq(30, max(break_vals), by = 30),
                        sec.axis = sec_axis(name = "Average daily MHW coverage", 
                                            transform = ~ . + 0,
-                                           breaks = c(18.25, 36.5, 54.75, 73, 91.25, 109.5),
+                                           breaks = break_vals,
                                            labels = y2_labs)) +
     scale_x_continuous(breaks = seq(1983, 2023, 8)) +
     guides(pattern_colour = FALSE, colour = FALSE) +
@@ -808,7 +825,7 @@ total_summary_fig <- function(df){
   min_year <- min(cat_daily_mean$year)
   max_year <- max(cat_daily_mean$year)
   fig_title <- paste0("Mediterranean MHW categories summary: ",min_year," - ", max_year, JJASON_bit,
-                      "\nCMEMS Med SST ~4km; Climatology period: 1990-2020")
+                      "\nCMEMS Med SST ~4km; Climatology period: 1982-2011")
   
   # Stick them together and save
   fig_ALL_historic <- ggpubr::ggarrange(fig_count_historic, fig_cum_historic,
@@ -824,7 +841,7 @@ total_summary_fig <- function(df){
 monthly_map_fig_one <- function(month_choice, year_choice, common_scales){
   
   # Filter data
-  monthly_data <- MHW_cat_region |> 
+  monthly_data <- MHW_cat_region_1982_2011 |> 
     filter(year == year_choice, month == month_choice) |> 
     left_join(MEOW, by = c("region" = "ECOREGION"))
   
@@ -874,7 +891,7 @@ monthly_map_fig_one <- function(month_choice, year_choice, common_scales){
 monthly_map_fig_full <- function(year_choice){
   
   # Create common scales
-  common_scales <- MHW_cat_region |> 
+  common_scales <- MHW_cat_region_1982_2011 |> 
     filter(year >= 2015) |> 
     mutate(cum_int = cum_int/pixels, 
            duration = duration/pixels) |> 
@@ -903,17 +920,17 @@ monthly_map_pixel <- function(var_choice,
   
   # Reduce the dataframe to the desired  dimensions
   if(annual){
-    MHW_cat_pixel_filter <- MHW_cat_pixel_annual_JJASON |> 
+    MHW_cat_pixel_filter <- MHW_cat_pixel_annual_JJASON_1982_2011 |> 
       filter(year %in% year_range)
   } else{
-    MHW_cat_pixel_filter <- MHW_cat_pixel_monthly |> 
+    MHW_cat_pixel_filter <- MHW_cat_pixel_monthly_1982_2011 |> 
       filter(year %in% year_range,
              month %in% month_range)
   }
   gc()
   
   # Ecoregions for faceting
-  monthly_MEOW <- MHW_cat_region |> 
+  monthly_MEOW <- MHW_cat_region_1982_2011 |> 
     mutate(month = as.integer(month)) |> 
     filter(year %in% year_range, month %in% month_range) |> 
     left_join(MEOW, by = c("region" = "ECOREGION"))

@@ -24,7 +24,7 @@ MHW_colours_no_mod <- c(
 )
 
 # Load data
-load("data/MHW_cat_summary_annual.RData")
+load("data/MHW_cat_summary_annual_1982_2011.RData")
 
 # NB: Not used at the moment as it has a different baseline period
 OISST_global <- readRDS("data/OISST_cat_daily_1982-2011_total.Rds") |> 
@@ -35,7 +35,7 @@ OISST_global <- readRDS("data/OISST_cat_daily_1982-2011_total.Rds") |>
   filter(category == "IV Extreme")
 
 # Prep data
-cat_daily_mean <- MHW_cat_summary_annual |>
+cat_daily_mean <- MHW_cat_summary_annual_1982_2011 |>
   filter(category != "I Moderate") |> 
   group_by(year, category) |>
   summarise(first_n_cum_prop = max(first_n_cum_prop),
@@ -58,8 +58,8 @@ Med_cat2_plot <- ggplot(cat_daily_mean, aes(x = year, y = first_n_cum_prop)) +
   geom_segment(data = cat_pentad, linewidth = 2, lineend = "round",
                aes(x = start_year, xend = end_year, 
                    y = first_n_cum_prop_pentad, yend = first_n_cum_prop_pentad)) +
-  # geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack), 
-  #            shape = 21, fill = "grey", show.legend = F) +
+  geom_point(data = OISST_global, aes(x = t, y = first_n_cum_prop_stack),
+             shape = 21, fill = "grey", show.legend = F) +
   scale_fill_manual("Category", values = MHW_colours_no_mod) +
   scale_colour_manual("Category", values = MHW_colours_no_mod) +
   # scale_y_continuous(limits = c(0, 20),

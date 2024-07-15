@@ -7,6 +7,8 @@
 # The project-wide functions
 source("code/functions.R")
 
+# Source the MHW detection if it hasn't been run yet
+# source("code/MHW_detect.R")
 
 # Ecoregion summaries -----------------------------------------------------
 
@@ -15,14 +17,14 @@ registerDoParallel(cores = 15)
 
 # All pixels
 # system.time(
-# MHW_cat_region <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, mme_select = mme_selected_4, .parallel = F)
+# MHW_cat_region_1982_2011 <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F, base_years = c(1982, 2011))
 # ) # 38 seconds for 1 on 15 cores, ~6.5 minutes total
-# save(MHW_cat_region, file = "data/MHW_cat_region.RData")
-# readr::write_csv(MHW_cat_region, "data/MHW_cat_region.csv")
-load("data/MHW_cat_region.RData")
+# save(MHW_cat_region_1982_2011, file = "data/MHW_cat_region_1982_2011.RData")
+# readr::write_csv(MHW_cat_region_1982_2011, "data/MHW_cat_region_1982_2011.csv")
+load("data/MHW_cat_region_1982_2011.RData")
 
 # Coastal pixels
-#NB: Not running as of 2024-07-05 due to minute lon/lat differences in 'coastal_coords' object
+## NB: Not running as of 2024-07-05 due to minute lon/lat differences in 'coastal_coords' object
 # system.time(
 #   MHW_cat_region_coast <- plyr::ldply(unique(med_regions$Ecoregion), region_calc,
 #                                       mme_select = mme_selected_4, pixel_sub = "coast", .parallel = F)
@@ -32,8 +34,8 @@ load("data/MHW_cat_region.RData")
 # load("data/MHW_cat_region_coast.RData")
 
 # MME pixels
-# NB: This filters out pixels with "No" damage and uses selected_4 rows
-#NB: Not running as of 2024-07-05 due to minute lon/lat differences in mme_select object
+## NB: This filters out pixels with "No" damage and uses selected_4 rows
+## NB: Not running as of 2024-07-05 due to minute lon/lat differences in mme_select object
 # system.time(
 #   MHW_cat_region_pixel <- plyr::ldply(unique(med_regions$Ecoregion), region_calc, .parallel = F,
 #                                       mme_select = mme_selected_4, pixel_sub = "pixel")
@@ -43,137 +45,84 @@ load("data/MHW_cat_region.RData")
 # load("data/MHW_cat_region_pixel.RData")
 
 
-# Ecoregion summary figures -----------------------------------------------
-
-# plyr::l_ply(unique(med_regions$region), ecoregion_summary_fig, .parallel = T)
-
-
-# Ecoregion trend figures -------------------------------------------------
-
-# plyr::l_ply(unique(med_regions$region), ecoregion_trend_fig, .parallel = T)
-
-
-# Ecoregion pixel figures -------------------------------------------------
-# These figures compare the MHW stats for different Ecoregions
-# based on the different ways of filtering the pixels used
-
-# NB: Requires - MHW_cat_region, MHW_cat_region_coast, MHW_cat_region_pixel
-
-# Prep and combine files
-# MHW_cat_region$sub <- "Ecoregion"
-# MHW_cat_region_coast$sub <- "Coast"
-# MHW_cat_region_pixel$sub <- "MME pixels"
-# MHW_cat_region_all <- rbind(MHW_cat_region, MHW_cat_region_coast, MHW_cat_region_pixel) %>% 
-#   mutate(sub = factor(sub, levels = c("Ecoregion", "Coast", "MME pixels")))
-
-# Boxplots of statistics
-# eco_box_plot <- MHW_cat_region_all %>% 
-#   filter(as.numeric(month) %in% 6:11, year >= 2015) %>% 
-#   mutate(region = factor(region,
-#                          levels = c("Alboran Sea", "Northwestern Mediterranean", 
-#                                     "Southwestern Mediterranean", "Adriatic Sea",
-#                                     "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
-#                                     "Aegean Sea", "Levantine Sea")),
-#          dur_prop = duration/pixels) %>% 
-#   select(region, sub, surface, dur_prop, mean_int) %>% 
-#   pivot_longer(surface:mean_int) %>% 
-#   mutate(name = case_when(name == "dur_prop" ~ "MHW days (n)",
-#                           name == "mean_int" ~ "Mean intensity (°C)",
-#                           name == "surface" ~ "Surface area (%)",
-#                           TRUE ~ name),
-#          name = factor(name, levels = c("Surface area (%)", "MHW days (n)", "Mean intensity (°C)"))) %>% 
-#   ggplot(aes(x = region, y = value)) +
-#   geom_boxplot(aes(fill = region, linetype = sub)) +
-#   coord_flip() +
-#   guides(fill = FALSE) +
-#   # scale_x_reverse() +
-#   facet_wrap(~name, scales = "free_x", nrow = 1, strip.position = "bottom") +
-#   labs(x = NULL, y = NULL, linetype = "subset",
-#        title = "Boxplots of MHW values for JJASON months from 2015-2019",
-#        subtitle = "Different outlined boxplots show subsets of MHW values for whole Ecoregion (solid), coast only (dotted), or MME pixels only (dashed)") +
-#   theme(legend.position = "bottom")
-# ggsave("figures/MHW_eco_pixels_boxplot.png", eco_box_plot, height = 8, width = 14)
-
-
-# Map summary figures -----------------------------------------------------
-
-# plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
-
-
 # Annual summaries --------------------------------------------------------
 
+# Set cores
+doParallel::registerDoParallel(cores = 15)
+
 # The occurrences per month per pixel
-# doParallel::registerDoParallel(cores = 15)
 # system.time(
-# MHW_cat_pixel_monthly <- plyr::ldply(res_files, cat_pixel_calc, .parallel = T)
+# MHW_cat_pixel_monthly_1982_2011 <- plyr::ldply(res_files[grepl("1982_2011", res_files)], cat_pixel_calc, .parallel = T)
 # ) # 217 seconds on 15 cores
-# save(MHW_cat_pixel_monthly, file = "data/MHW_cat_pixel_monthly.RData")
-# load("data/MHW_cat_pixel_monthly.RData") # This is very large, only load if necessary
+# save(MHW_cat_pixel_monthly_1982_2011, file = "data/MHW_cat_pixel_monthly_1982_2011.RData")
+# load("data/MHW_cat_pixel_monthly_1982_2011.RData") # This is very large, only load if necessary
 
 # The occurrences per year per pixel
-## NB: Requires MHW_cat_pixel_monthly
 # system.time(
-# MHW_cat_pixel_annual <- cat_pixel_annual_calc()
-# ) # 140 seconds
-# save(MHW_cat_pixel_annual, file = "data/MHW_cat_pixel_annual.RData")
-load("data/MHW_cat_pixel_annual.RData")
+# MHW_cat_pixel_annual_1982_2011 <- cat_pixel_annual_calc(base_years = c(1982, 2011))
+# ) # 220 seconds
+# save(MHW_cat_pixel_annual_1982_2011, file = "data/MHW_cat_pixel_annual_1982_2011.RData")
+load("data/MHW_cat_pixel_annual_1982_2011.RData")
 
 # The occurrences per year per pixel JJASON
 ## NB: Requires MHW_cat_pixel_monthly
 # system.time(
-# MHW_cat_pixel_annual_JJASON <- cat_pixel_annual_calc(sub_months = seq(6, 11))
-# ) # 111 seconds
-# save(MHW_cat_pixel_annual_JJASON, file = "data/MHW_cat_pixel_annual_JJASON.RData")
-load("data/MHW_cat_pixel_annual_JJASON.RData")
+# MHW_cat_pixel_annual_JJASON_1982_2011 <- cat_pixel_annual_calc(base_years = c(1982, 2011), sub_months = seq(6, 11))
+# ) # 191 seconds
+# save(MHW_cat_pixel_annual_JJASON_1982_2011, file = "data/MHW_cat_pixel_annual_JJASON_1982_2011.RData")
+load("data/MHW_cat_pixel_annual_JJASON_1982_2011.RData")
 
 # The occurrences per day all months
 # system.time(
-# MHW_cat_daily_annual <- plyr::ldply(res_files, cat_daily_calc, .parallel = T)
-# ) # 130 seconds on 15 cores
-# save(MHW_cat_daily_annual, file = "data/MHW_cat_daily_annual.RData")
-load("data/MHW_cat_daily_annual.RData")
+# MHW_cat_daily_annual_1982_2011 <- plyr::ldply(res_files[grepl("1982_2011", res_files)], cat_daily_calc, .parallel = T)
+# ) # 109 seconds on 15 cores
+# save(MHW_cat_daily_annual_1982_2011, file = "data/MHW_cat_daily_annual_1982_2011.RData")
+load("data/MHW_cat_daily_annual_1982_2011.RData")
 
 # The occurrences per day JJASON
 # system.time(
-# MHW_cat_daily_annual_JJASON <- plyr::ldply(res_files, cat_daily_calc, .parallel = T, sub_months = seq(6, 11))
-# ) # 92 seconds on 15 cores
-# save(MHW_cat_daily_annual_JJASON, file = "data/MHW_cat_daily_annual_JJASON.RData")
-load("data/MHW_cat_daily_annual_JJASON.RData")
+# MHW_cat_daily_annual_JJASON_1982_2011<- plyr::ldply(res_files[grepl("1982_2011", res_files)],
+#                                                     cat_daily_calc, .parallel = T, sub_months = seq(6, 11))
+# ) # 112 seconds on 15 cores
+# save(MHW_cat_daily_annual_JJASON_1982_2011, file = "data/MHW_cat_daily_annual_JJASON_1982_2011.RData")
+load("data/MHW_cat_daily_annual_JJASON_1982_2011.RData")
 
 
 # Total summaries ---------------------------------------------------------
 
 # The daily count of the first time the largest category pixel occurs over the whole Med and the cumulative values
-# MHW_cat_summary_annual <- cat_summary_calc(MHW_cat_pixel_annual, MHW_cat_daily_annual)
-# save(MHW_cat_summary_annual, file = "data/MHW_cat_summary_annual.RData")
-load("data/MHW_cat_summary_annual.RData")
+# MHW_cat_summary_annual_1982_2011 <- cat_summary_calc(MHW_cat_pixel_annual_1982_2011, MHW_cat_daily_annual_1982_2011)
+# save(MHW_cat_summary_annual_1982_2011, file = "data/MHW_cat_summary_annual_1982_2011.RData")
+load("data/MHW_cat_summary_annual_1982_2011.RData")
 
 # Same as above but for JJASON
-# MHW_cat_summary_annual_JJASON <- cat_summary_calc(MHW_cat_pixel_annual_JJASON, MHW_cat_daily_annual_JJASON, JJASON = T)
-# save(MHW_cat_summary_annual_JJASON, file = "data/MHW_cat_summary_annual_JJASON.RData")
-load("data/MHW_cat_summary_annual_JJASON.RData")
+# MHW_cat_summary_annual_JJASON_1982_2011 <- cat_summary_calc(MHW_cat_pixel_annual_JJASON_1982_2011, 
+#                                                             MHW_cat_daily_annual_JJASON_1982_2011, JJASON = T)
+# save(MHW_cat_summary_annual_JJASON_1982_2011, file = "data/MHW_cat_summary_annual_JJASON_1982_2011.RData")
+load("data/MHW_cat_summary_annual_JJASON_1982_2011.RData")
 
 
 # Annual summaries of clim ------------------------------------------------
 
 # Calculations for the days above the 90th percentile and the total anomalies
-doParallel::registerDoParallel(cores = 15)
+doParallel::registerDoParallel(cores = 10) # NB: Not enough RAM for 15 cores
 system.time(
-MHW_clim_pixel_annual <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T)
-) # 372 seconds on 15 cores
-save(MHW_clim_pixel_annual, file = "data/MHW_clim_pixel_annual.RData")
+MHW_clim_pixel_annual_1982_2011 <- plyr::ldply(res_files[grepl("1982_2011", res_files)], clim_pixel_annual_calc, .parallel = T)
+) # 310 seconds on 10 cores
+save(MHW_clim_pixel_annual_1982_2011, file = "data/MHW_clim_pixel_annual_1982_2011.RData")
 
 # The same for JJASON
 system.time(
-MHW_clim_pixel_annual_JJASON <- plyr::ldply(res_files, clim_pixel_annual_calc, .parallel = T, sub_months = seq(6, 11))
-) # 314 seconds
-save(MHW_clim_pixel_annual_JJASON, file = "data/MHW_clim_pixel_annual_JJASON.RData")
+MHW_clim_pixel_annual_JJASON_1982_2011 <- plyr::ldply(res_files[grepl("1982_2011", res_files)], 
+                                                      clim_pixel_annual_calc, .parallel = T, sub_months = seq(6, 11))
+) # 314 seconds on 10 cores
+save(MHW_clim_pixel_annual_JJASON_1982_2011, file = "data/MHW_clim_pixel_annual_JJASON_1982_2011.RData")
 
 
 # Summary figures ---------------------------------------------------------
 
 ## NB: These require objects to be in the environment that are added by the above code
-# MHW_cat_summary_annual, MHW_cat_pixel_annual
+# MHW_cat_summary_annual_1982_2011, MHW_cat_pixel_annual_1982_2011
 
 # Create annual summary figures
 # NB: This is very RAM heavy
@@ -181,13 +130,13 @@ doParallel::registerDoParallel(cores = 15)
 plyr::l_ply(1982:2023, annual_summary_fig, .parallel = T)
 
 # Create total summary figure
-total_summary <- total_summary_fig(MHW_cat_summary_annual)
-ggsave("figures/MHW_cat_historic.png", total_summary, height = 4.25, width = 8)
-total_summary_JJASON <- total_summary_fig(MHW_cat_summary_annual_JJASON)
-ggsave("figures/MHW_cat_historic_JJASON.png", total_summary_JJASON, height = 4.25, width = 8)
+total_summary_1982_2011 <- total_summary_fig(MHW_cat_summary_annual_1982_2011)
+ggsave("figures/MHW_cat_historic_1982_2011.png", total_summary_1982_2011, height = 4.25, width = 8.5)
+total_summary_JJASON_1982_2011 <- total_summary_fig(MHW_cat_summary_annual_JJASON_1982_2011)
+ggsave("figures/MHW_cat_historic_JJASON_1982_2011.png", total_summary_JJASON_1982_2011, height = 4.25, width = 8.5)
 
 # Subset data for following two figures
-MHW_cat_pixel_annual_sub <- MHW_cat_pixel_annual %>%
+MHW_cat_pixel_annual_sub <- MHW_cat_pixel_annual_1982_2011 %>%
   filter(year %in% seq(2015, 2019))
 
 # Med maps of duration summary values
@@ -252,6 +201,63 @@ med_map_cat
 med_map_combi <- ggpubr::ggarrange(med_map_dur, med_map_cat, nrow = 1)
 total_summary_quad <- ggpubr::ggarrange(total_summary, med_map_combi, ncol = 1)
 ggsave("figures/MHW_cat_historic_quad.png", total_summary_quad, height = 9, width = 10)
+
+
+# Ecoregion summary figures -----------------------------------------------
+
+# plyr::l_ply(unique(med_regions$Ecoregion), ecoregion_summary_fig, .parallel = T)
+
+
+# Ecoregion trend figures -------------------------------------------------
+
+# plyr::l_ply(unique(med_regions$Ecoregion), ecoregion_trend_fig, .parallel = T)
+
+
+# Ecoregion pixel figures -------------------------------------------------
+# These figures compare the MHW stats for different Ecoregions
+# based on the different ways of filtering the pixels used
+
+# NB: Requires - MHW_cat_region, MHW_cat_region_coast, MHW_cat_region_pixel
+
+# Prep and combine files
+# MHW_cat_region$sub <- "Ecoregion"
+# MHW_cat_region_coast$sub <- "Coast"
+# MHW_cat_region_pixel$sub <- "MME pixels"
+# MHW_cat_region_all <- rbind(MHW_cat_region, MHW_cat_region_coast, MHW_cat_region_pixel) %>% 
+#   mutate(sub = factor(sub, levels = c("Ecoregion", "Coast", "MME pixels")))
+
+# Boxplots of statistics
+# eco_box_plot <- MHW_cat_region_all %>% 
+#   filter(as.numeric(month) %in% 6:11, year >= 2015) %>% 
+#   mutate(region = factor(region,
+#                          levels = c("Alboran Sea", "Northwestern Mediterranean", 
+#                                     "Southwestern Mediterranean", "Adriatic Sea",
+#                                     "Ionian Sea", "Tunisian Plateau/Gulf of Sidra",
+#                                     "Aegean Sea", "Levantine Sea")),
+#          dur_prop = duration/pixels) %>% 
+#   select(region, sub, surface, dur_prop, mean_int) %>% 
+#   pivot_longer(surface:mean_int) %>% 
+#   mutate(name = case_when(name == "dur_prop" ~ "MHW days (n)",
+#                           name == "mean_int" ~ "Mean intensity (°C)",
+#                           name == "surface" ~ "Surface area (%)",
+#                           TRUE ~ name),
+#          name = factor(name, levels = c("Surface area (%)", "MHW days (n)", "Mean intensity (°C)"))) %>% 
+#   ggplot(aes(x = region, y = value)) +
+#   geom_boxplot(aes(fill = region, linetype = sub)) +
+#   coord_flip() +
+#   guides(fill = FALSE) +
+#   # scale_x_reverse() +
+#   facet_wrap(~name, scales = "free_x", nrow = 1, strip.position = "bottom") +
+#   labs(x = NULL, y = NULL, linetype = "subset",
+#        title = "Boxplots of MHW values for JJASON months from 2015-2019",
+#        subtitle = "Different outlined boxplots show subsets of MHW values for whole Ecoregion (solid), coast only (dotted), or MME pixels only (dashed)") +
+#   theme(legend.position = "bottom")
+# ggsave("figures/MHW_eco_pixels_boxplot.png", eco_box_plot, height = 8, width = 14)
+
+
+# Map summary figures -----------------------------------------------------
+
+# plyr::l_ply(2015:2019, monthly_map_fig_full, .parallel = T)
 
 
 # Per pixel maps with MME -------------------------------------------------
@@ -705,7 +711,6 @@ ggsave("figures/scatter_spp_all.png", scatter_spp_all, height = 6, width = 9)
 # MHW metric time series and MME rug plot ---------------------------------
 
 
-
 # Histograms of MME and MHW -----------------------------------------------
 
 # Requires: site_MME_MHW_summary
@@ -893,4 +898,71 @@ pentad_stats_med <- MHW_clim_pixel_annual_JJASON %>%
 pentad_stats <- bind_rows(pentad_stats_pixel, pentad_stats_ecoregion, pentad_stats_med) %>% 
   dplyr::select(ID, everything())
 write_csv(pentad_stats, "data/pentad_stats.csv")
+
+
+# Extract pixel -----------------------------------------------------------
+
+# If there is a desire to look at a single pixel, that can be done here
+
+# Load the monthly results to peruse pixel based results
+# NB: This is created in 'code/MHW_summary.R'
+load("data/MHW_cat_pixel_monthly.RData")
+
+# Looking at the above dataframe we can see that the following pixel had the highest max int.
+lat_round <- round(med_lat$lat, 5)
+single_pixel <- map_df(.x = med_SST_files, .f = load_nc_sub, lat_row = which(lat_round == 35.72916)) |>
+  mutate(lat = round(lat, 5),
+         lon = round(lon, 7)) |>
+  filter(lon == -5.1458511)
+gc()
+
+# We then run the MHW stats for this one pixel
+MHW_pixel <- single_pixel |>
+  # filter(lat == -63.375, lon == 0.125) |># tester...
+  group_by(lon, lat) |>
+  nest() |>
+  mutate(clim = purrr::map(data, ts2clm, climatologyPeriod = c("1982-01-01", "2011-12-31")),
+         event = purrr::map(clim, detect_event), 
+         cat = purrr::map(event, category, climatology = T, season = "peak")) |>
+  select(-data, -clim)
+
+# Extract the four different data.frames
+event_clim <- MHW_pixel |>
+  dplyr::select(-cat) |>
+  unnest(event) |>
+  filter(row_number() %% 2 == 1) |>
+  unnest(event) |>
+  ungroup()
+event_event <- MHW_pixel |>
+  dplyr::select(-cat) |>
+  unnest(event) |>
+  filter(row_number() %% 2 == 0) |>
+  unnest(event) |>
+  ungroup()
+cat_clim <- MHW_pixel |>
+  dplyr::select(-event) |>
+  unnest(cat) |>
+  filter(row_number() %% 2 == 1) |>
+  unnest(cat) |>
+  ungroup()
+cat_event <- MHW_pixel |>
+  dplyr::select(-event) |>
+  unnest(cat) |>
+  filter(row_number() %% 2 == 0) |>
+  unnest(cat) |>
+  ungroup()
+
+# Combine same shaped dataframes
+all_clim <- left_join(event_clim, cat_clim, by = c("lon", "lat", "t", "event_no"))
+all_event <- left_join(event_event, cat_event, 
+                       by = c("lon", "lat", "event_no", "duration", 
+                              "intensity_max" = "i_max", "date_peak" = "peak_date")) 
+
+# Save extracts as .csv files for sharing across languages
+write_csv(all_clim, paste0("data/extract/MHW_clim_",all_clim$lon[1],"_",all_clim$lat[1],".csv"))
+write_csv(all_event, paste0("data/extract/MHW_event_",all_event$lon[1],"_",all_event$lat[1],".csv"))
+
+# Look at the one crazy event
+event_line(detect_event(ts2clm(single_pixel, climatologyPeriod = c("1982-01-01", "2011-12-31"))))
+ggsave(paste0("data/extract/MHW_plot_",all_clim$lon[1],"_",all_clim$lat[1],".png"))
 
